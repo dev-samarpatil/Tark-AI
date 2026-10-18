@@ -310,10 +310,32 @@ function renderSidebar() {
     <aside class="sidebar ${state.isSidebarOpen ? 'open' : ''}">
       <div class="sidebar-header">
         <div class="sidebar-logo">
-          <div class="logo-icon">
-            <span class="material-symbols-outlined">terminal</span>
+          <div class="logo-mark">
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="tarkLogoGrad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#00D991" />
+                  <stop offset="100%" stop-color="#3B82F6" />
+                </linearGradient>
+              </defs>
+              <rect x="1" y="1" width="30" height="30" rx="8" fill="#0C1713" stroke="#263C31" stroke-width="1.5" />
+              <!-- Corner targeting reticles -->
+              <path d="M5 9V5H9" stroke="#00D991" stroke-width="1.2" stroke-linecap="round" />
+              <path d="M23 5H27V9" stroke="#3B82F6" stroke-width="1.2" stroke-linecap="round" />
+              <path d="M27 23V27H23" stroke="#00D991" stroke-width="1.2" stroke-linecap="round" />
+              <path d="M9 27H5V23" stroke="#3B82F6" stroke-width="1.2" stroke-linecap="round" />
+              <!-- Precision T & Prompt Kernel -->
+              <path d="M9 10.5H23M16 10.5V22M12 16L16 20L20 16" stroke="url(#tarkLogoGrad)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+              <circle cx="16" cy="10.5" r="2" fill="#00D991" />
+            </svg>
           </div>
-          <h1>TARK <span class="accent">AI</span></h1>
+          <div class="logo-brand">
+            <div class="brand-text">
+              <span class="brand-name">TARK</span>
+              <span class="brand-ai">AI</span>
+            </div>
+            <span class="brand-subtitle">ASSESSMENT COCKPIT</span>
+          </div>
         </div>
         <div style="display: flex; align-items: center; gap: 6px;">
           <span class="sidebar-badge">COCKPIT</span>
@@ -379,6 +401,8 @@ function renderHeader() {
     'skill-report': 'skill-report'
   };
 
+  const initials = state.candidate.name ? state.candidate.name.split(' ').map(n => n[0]).join('') : 'AS';
+
   return `
     <header class="header">
       <div class="header-left">
@@ -405,12 +429,24 @@ function renderHeader() {
           <span class="shortcut">⌘K</span>
         </div>
 
-        <button class="notification-btn" aria-label="Notifications" title="Active Session Sync">
-          <span class="material-symbols-outlined">notifications</span>
+        <button class="notification-btn" aria-label="Notifications" title="Live Assessment Telemetry Active">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          </svg>
           <span class="badge"></span>
         </button>
 
-        <img class="profile-avatar" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80" alt="Profile" />
+        <div class="header-profile-chip" title="Candidate: ${state.candidate.name} (${state.candidate.sessionId})">
+          <div class="avatar-monogram">
+            <span>${initials}</span>
+            <span class="online-indicator"></span>
+          </div>
+          <div class="profile-info-mini">
+            <span class="name">${state.candidate.name}</span>
+            <span class="meta">${state.candidate.sessionId}</span>
+          </div>
+        </div>
       </div>
     </header>
   `;
@@ -439,10 +475,6 @@ function renderWorkspaceView() {
             <span class="badge badge-neutral" style="gap: 6px;">
               <span style="width: 6px; height: 6px; border-radius: 50%; background: #387eb8;"></span>
               Python 3.14
-            </span>
-            <span class="badge badge-warn">
-              <span class="material-symbols-outlined icon-xs">timer</span>
-              ${state.candidate.timeRemaining} remaining
             </span>
             ${state.isFollowUp ? '<span class="badge badge-ai">Adaptation Active</span>' : ''}
             ${state.isVerifyMode ? '<span class="badge badge-warn">Verify Mode</span>' : ''}
@@ -829,7 +861,12 @@ function renderDecisionTrailView() {
       <div class="card card-accent" style="margin-bottom: 24px; padding: 20px;">
         <div class="dossier-grid">
           <div style="display: flex; align-items: center; gap: 14px;">
-            <img class="profile-avatar" style="width: 52px; height: 52px; border-radius: 12px;" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80" alt="Avatar" />
+            <div class="candidate-dossier-avatar">
+              <div class="dossier-monogram">
+                <span>${state.candidate.name ? state.candidate.name.split(' ').map(n => n[0]).join('') : 'AS'}</span>
+              </div>
+              <span class="dossier-status-ring"></span>
+            </div>
             <div>
               <div style="display: flex; align-items: center; gap: 8px;">
                 <span class="text-headline-md" style="font-size: 18px;">${state.candidate.name}</span>

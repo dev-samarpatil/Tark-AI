@@ -271,33 +271,59 @@ img {
 .sidebar-logo {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  gap: 10px;
 }
 
-.sidebar-logo .logo-icon {
-  width: 28px;
-  height: 28px;
-  background: linear-gradient(135deg, var(--emerald), var(--blue));
-  border-radius: var(--radius-md);
+.sidebar-logo .logo-mark {
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.2s ease, filter 0.2s ease;
 }
 
-.sidebar-logo .logo-icon span {
-  font-size: 16px;
-  color: var(--canvas-base);
+.sidebar-logo:hover .logo-mark {
+  transform: scale(1.05);
+  filter: drop-shadow(0 0 8px rgba(0, 217, 145, 0.4));
 }
 
-.sidebar-logo h1 {
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+.sidebar-logo .logo-brand {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-logo .brand-text {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  line-height: 1;
+}
+
+.sidebar-logo .brand-name {
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
   color: var(--text-high);
 }
 
-.sidebar-logo h1 .accent {
+.sidebar-logo .brand-ai {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
   color: var(--emerald);
+  text-shadow: 0 0 10px rgba(0, 217, 145, 0.4);
+}
+
+.sidebar-logo .brand-subtitle {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  margin-top: 2px;
 }
 
 .sidebar-badge {
@@ -569,34 +595,142 @@ img {
 
 .notification-btn {
   position: relative;
-  padding: var(--space-xs);
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--text-mid);
   border-radius: var(--radius-md);
+  border: 1px solid var(--border-structural);
+  background: var(--surface-1);
   transition: all 0.2s ease;
+  cursor: pointer;
 }
 
 .notification-btn:hover {
-  background: var(--surface-3);
-  color: var(--text-high);
+  background: var(--surface-2);
+  color: var(--emerald);
+  border-color: rgba(0, 217, 145, 0.4);
+  box-shadow: 0 0 10px rgba(0, 217, 145, 0.15);
 }
 
 .notification-btn .badge {
   position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 8px;
-  height: 8px;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--emerald);
+  box-shadow: 0 0 6px var(--emerald);
+  border: 1.5px solid #06100d;
+}
+
+/* Header Profile Chip */
+.header-profile-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 10px 3px 3px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-structural);
+  border-radius: var(--radius-full);
+  transition: all 0.2s ease;
+  cursor: pointer;
+  user-select: none;
+}
+
+.header-profile-chip:hover {
+  border-color: rgba(0, 217, 145, 0.4);
+  background: var(--surface-2);
+  box-shadow: 0 0 12px rgba(0, 217, 145, 0.1);
+}
+
+.header-profile-chip .avatar-monogram {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #10241B, #0E3024);
+  border: 1.5px solid var(--emerald);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--emerald);
+  box-shadow: 0 0 8px rgba(0, 217, 145, 0.25);
+  flex-shrink: 0;
+}
+
+.header-profile-chip .online-indicator {
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--emerald);
+  border: 1.5px solid #06100d;
+  box-shadow: 0 0 4px var(--emerald);
+}
+
+.header-profile-chip .profile-info-mini {
+  display: flex;
+  flex-direction: column;
+}
+
+.header-profile-chip .name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-high);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.header-profile-chip .meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Candidate Dossier Avatar (Decision Trail) */
+.candidate-dossier-avatar {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #0C1E16, #143527);
+  border: 1.5px solid rgba(0, 217, 145, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 16px rgba(0, 217, 145, 0.15);
+  flex-shrink: 0;
+}
+
+.candidate-dossier-avatar .dossier-monogram {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--emerald);
+  text-shadow: 0 0 12px rgba(0, 217, 145, 0.45);
+}
+
+.candidate-dossier-avatar .dossier-status-ring {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background: var(--emerald);
   border: 2px solid #06100d;
-}
-
-.profile-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 1px solid var(--border-structural);
+  box-shadow: 0 0 6px var(--emerald);
 }
 
 /* ── Content Area ──────────────────────────────────────────────── */
@@ -1594,6 +1728,10 @@ textarea:focus-visible,
 
   .breadcrumb .seg,
   .breadcrumb .sep:first-of-type {
+    display: none;
+  }
+
+  .header-profile-chip .profile-info-mini {
     display: none;
   }
 
