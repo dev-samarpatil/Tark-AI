@@ -7,7 +7,7 @@
  */
 
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
-const DEFAULT_MODEL = 'llama-3.3-70b-versatile';
+const DEFAULT_MODEL = 'openai/gpt-oss-120b';
 const REQUEST_TIMEOUT_MS = 10000;
 
 export class GroqService {
