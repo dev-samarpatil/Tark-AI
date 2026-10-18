@@ -1,20 +1,18 @@
 # STATE.md — Current Session State
 
-## Active Milestone: Phase 3 — Persistent Assessment State & Evidence Integrity
-- Milestone Version: 3.0.0
+## Active Milestone: Phase 4 — Assessment Intelligence, Evidence-Grounded Scoring & Skill Verification
+- Milestone Version: 4.0.0
 - Status: Fully implemented & empirically verified
 - Completion Date: 2026-10-18
-- Architecture: ACID SQLite (`node:sqlite`) with WAL mode and foreign key constraints
+- Rubric: `assessment-rubric-v1` (Deterministic 5-Dimension Normalized Evaluation)
 
 ## Verification Summary
+- **Phase 4 Verification**: `node scripts/verify-phase4.js` passed 20/20 tests (100%).
 - **Phase 1 Regression**: `node scripts/verify-assessment.js` passed 7/7 suites (100%).
 - **Phase 2 AI Coach Regression**: `node scripts/verify-ai-coach.js` passed 19/19 tests (100%).
 - **Phase 3 Persistence & Integrity Suite**: `node scripts/verify-phase3.js` passed 23/23 tests (100%).
-- **Cold Process Restart Survival**: Verified via automated shutdown and clean process respawn.
-- **Production Build**: `npm run build` in `frontend/` succeeded with 0 errors (154ms).
-- **Browser E2E Verification**: Multi-step interactive flow with reload recovery recorded on video:
-  - `phase3_e2e_verification_1792321031283.webp`
-  - `phase3_e2e_part2_1792321408649.webp`
+- **Frontend Production Build**: `npm run build` in `frontend/` succeeded with 0 errors (76ms).
+- **Targeted Browser Smoke Test**: Verified VERIFY challenge UI, defect diagnosis evaluation, and 5-dimension rubric rendering.
 
 ## Key Artifacts
 - Storage adapter: `backend/src/services/persistence/db.js`

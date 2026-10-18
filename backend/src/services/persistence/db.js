@@ -123,6 +123,17 @@ export function getDatabase(customPath = null) {
     CREATE INDEX IF NOT EXISTS idx_chat_session ON chat_messages(session_id, created_at);
   `);
 
+  // Idempotent migrations for Phase 4
+  try {
+    db.exec('ALTER TABLE executions ADD COLUMN has_regression INTEGER DEFAULT 0;');
+  } catch (_) {}
+  try {
+    db.exec('ALTER TABLE executions ADD COLUMN regression_details TEXT;');
+  } catch (_) {}
+  try {
+    db.exec('ALTER TABLE skill_reports ADD COLUMN rubric_version TEXT DEFAULT "assessment-rubric-v1";');
+  } catch (_) {}
+
   // Idempotently seed default Challenge
   const checkChallenge = db.prepare('SELECT id FROM challenges WHERE id = ?').get('TRK-P42');
   if (!checkChallenge) {

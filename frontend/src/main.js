@@ -10,6 +10,10 @@ const state = {
   isSendingChat: false,
   activeExecutionId: null,
   executionError: null, // { status, message, line, offset }
+  isVerifyMode: false,
+  verifySelection: 'B',
+  verifySubmitting: false,
+  verifyFeedback: null,
   candidate: {
     name: 'Aarav Sharma',
     sessionId: '#TRK-8821',
@@ -454,23 +458,74 @@ function renderWorkspaceView() {
         <div style="display: flex; flex-direction: column; gap: 12px;">
           <div class="card card-low" style="padding: 12px;">
             <div class="text-label-sm" style="color: var(--text-muted); margin-bottom: 8px;">Evaluation Challenge Mode</div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
-              <button id="modeBaseBtn" class="btn ${!state.isFollowUp ? 'btn-primary' : 'btn-outline'}" style="font-size: 11px; justify-content: center; padding: 6px 4px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px;">
+              <button id="modeBaseBtn" class="btn ${!state.isFollowUp && !state.isVerifyMode ? 'btn-primary' : 'btn-outline'}" style="font-size: 10px; justify-content: center; padding: 6px 2px;">
                 Base (K>=2)
               </button>
-              <button id="modeFollowUpBtn" class="btn ${state.isFollowUp ? 'btn-ai' : 'btn-outline'}" style="font-size: 11px; justify-content: center; padding: 6px 4px;">
-                Follow-Up (K>=3)
+              <button id="modeFollowUpBtn" class="btn ${state.isFollowUp && !state.isVerifyMode ? 'btn-ai' : 'btn-outline'}" style="font-size: 10px; justify-content: center; padding: 6px 2px;">
+                Follow-Up
+              </button>
+              <button id="modeVerifyBtn" class="btn ${state.isVerifyMode ? 'btn-warn' : 'btn-outline'}" style="font-size: 10px; justify-content: center; padding: 6px 2px;">
+                VERIFY
               </button>
             </div>
           </div>
 
           <div class="card card-low" style="flex: 1; display: flex; flex-direction: column; gap: 14px; overflow-y: auto;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span class="text-label-md" style="color: var(--emerald);">Problem Prompt</span>
-              <span class="badge badge-neutral">#TRK-P42</span>
+              <span class="text-label-md" style="color: var(--emerald);">
+                ${state.isVerifyMode ? 'Verification Defect Task' : 'Problem Prompt'}
+              </span>
+              <span class="badge badge-neutral">
+                ${state.isVerifyMode ? 'DEFECT-ORDERING-01' : '#TRK-P42'}
+              </span>
             </div>
 
-            ${!state.isFollowUp ? `
+            ${state.isVerifyMode ? `
+              <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 6px; padding: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <span class="badge badge-warn">Rubric Weight: 20%</span>
+                  <span class="badge badge-neutral">10 pts Diagnosis / 10 pts Fix</span>
+                </div>
+                <p class="text-body-sm" style="line-height: 1.5; color: var(--text-high); font-size: 12px;">
+                  <strong>Flaw Investigation:</strong> Candidate solution fails Test 2. On input <code>[4, 2, 2, 4]</code>, it returns <code>[2, 4]</code> instead of expected <code>[4, 2]</code>. Identify the root cause:
+                </p>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                ${[
+                  { id: 'A', text: 'Set membership test (val in seen) causes quadratic O(N²) time complexity.' },
+                  { id: 'B', text: 'Appending on 2nd encounter orders items by second occurrence rather than first appearance index.' },
+                  { id: 'C', text: 'Negative numbers cannot be hashed by Python sets.' },
+                  { id: 'D', text: 'The function returns a list instead of a set.' }
+                ].map(opt => `
+                  <label style="display: flex; align-items: flex-start; gap: 8px; font-size: 11px; color: var(--text-high); background: var(--surface-2); padding: 8px; border-radius: 6px; cursor: pointer; border: 1px solid ${state.verifySelection === opt.id ? 'var(--amber-light)' : 'transparent'};">
+                    <input type="radio" name="verifyOption" value="${opt.id}" ${state.verifySelection === opt.id ? 'checked' : ''} style="margin-top: 2px;" />
+                    <span><strong>Option ${opt.id}:</strong> ${opt.text}</span>
+                  </label>
+                `).join('')}
+              </div>
+
+              <button id="submitVerifyBtn" class="btn btn-primary" style="font-size: 11px; justify-content: center;" ${state.verifySubmitting ? 'disabled' : ''}>
+                <span class="material-symbols-outlined icon-xs">fact_check</span>
+                <span>${state.verifySubmitting ? 'Evaluating...' : 'Submit Diagnostic Finding'}</span>
+              </button>
+
+              ${state.verifyFeedback ? `
+                <div style="padding: 10px; border-radius: 6px; background: ${state.verifyFeedback.isCorrect ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)'}; border: 1px solid ${state.verifyFeedback.isCorrect ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'};">
+                  <div style="display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12px; color: ${state.verifyFeedback.isCorrect ? 'var(--emerald)' : 'var(--red-light)'};">
+                    <span class="material-symbols-outlined icon-xs">${state.verifyFeedback.isCorrect ? 'check_circle' : 'cancel'}</span>
+                    <span>${state.verifyFeedback.isCorrect ? 'Diagnosis Correct (+10 pts)' : 'Diagnosis Incorrect (0 pts)'}</span>
+                  </div>
+                  <div style="font-size: 11px; color: var(--text-mid); margin-top: 4px;">
+                    ${state.verifyFeedback.explanation}
+                  </div>
+                  <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+                    Test Fix: ${state.verifyFeedback.validated ? '<strong style="color: var(--emerald);">Passed (+10 pts)</strong>' : '<span style="color: var(--amber-light);">Fix code in editor and re-submit</span>'}
+                  </div>
+                </div>
+              ` : ''}
+            ` : (!state.isFollowUp ? `
               <p class="text-body-sm" style="line-height: 1.6;">
                 Return each integer that appears <span style="color: var(--emerald); font-weight: 500;">more than once</span>, exactly once, preserving the order of its <span style="color: var(--blue-light); font-weight: 500;">first appearance</span> in the input array.
               </p>
@@ -503,7 +558,7 @@ function renderWorkspaceView() {
                   <div style="color: var(--emerald);">Out: <span>[]</span></div>
                 </div>
               </div>
-            `}
+            `)}
 
             <div>
               <div class="text-label-sm" style="color: var(--text-muted); margin-bottom: 6px;">Constraints</div>
@@ -856,13 +911,13 @@ function renderDecisionTrailView() {
 function renderSkillReportView() {
   const report = state.skillReport || {};
   const scores = report.scores || {};
-  const evidence = report.evidence || {};
+  const dimensions = report.dimensions || [];
   const evidenceSummary = report.evidenceSummary || [];
+  const aiCollab = report.aiCollaboration || { totalQueries: 0, explanation: 'No AI interactions recorded.' };
 
-  const overall = scores.overall !== null ? scores.overall : '--';
-  const correctness = scores.correctness !== null ? `${scores.correctness}%` : 'Pending Tests';
-  const autonomy = scores.autonomy !== null ? `${scores.autonomy}%` : '100%';
-  const adaptability = scores.adaptability !== null ? `${scores.adaptability}%` : 'Not Attempted';
+  const overall = (report.overallScore !== null && report.overallScore !== undefined) ? report.overallScore : '--';
+  const coverage = report.coveragePercent !== undefined ? report.coveragePercent : 0;
+  const rubricVer = report.rubricVersion || 'assessment-rubric-v1';
 
   return `
     <div class="page-enter" style="padding: 24px;">
@@ -871,12 +926,14 @@ function renderSkillReportView() {
         <div>
           <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
             <span class="badge badge-pass">Audit Grade</span>
+            <span class="badge badge-neutral">${rubricVer}</span>
+            <span class="badge ${coverage >= 80 ? 'badge-pass' : 'badge-warn'}">${coverage}% Evidence Coverage</span>
             <span style="color: var(--border-structural);">•</span>
             <span class="text-code-sm" style="color: var(--text-muted);">Session ${state.candidate.sessionId}</span>
           </div>
           <h1 class="text-headline-xl" style="font-size: 26px;">Evidence-Linked Skill Report</h1>
           <p class="text-body-sm" style="color: var(--text-mid); margin-top: 4px;">
-            Assessment metrics mathematically derived from verified test outcomes, child process runtimes, and Decision Trail events.
+            Deterministic evaluation derived from verified test outcomes, counterfactual adaptations, and diagnostic telemetry.
           </p>
         </div>
 
@@ -896,99 +953,101 @@ function renderSkillReportView() {
       <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
         <div class="card card-low">
           <div class="text-label-sm" style="color: var(--text-muted);">Overall Benchmark</div>
-          <div class="text-headline-xl" style="color: var(--emerald); margin-top: 4px;">${overall}<span style="font-size: 16px; color: var(--text-muted);">/100</span></div>
-          <div class="text-code-sm" style="color: var(--emerald); margin-top: 2px;">
-            ${scores.overall ? 'Verified Competency Score' : 'Run tests to generate'}
+          <div class="text-headline-xl" style="color: ${overall !== '--' ? 'var(--emerald)' : 'var(--text-muted)'}; margin-top: 4px;">
+            ${overall}<span style="font-size: 16px; color: var(--text-muted);">/100</span>
+          </div>
+          <div class="text-code-sm" style="color: ${overall !== '--' ? 'var(--emerald)' : 'var(--amber-light)'}; margin-top: 2px;">
+            ${overall !== '--' ? (report.isProvisional ? 'Provisional Score' : 'Audit-Verified Score') : 'Core Correctness Required'}
           </div>
         </div>
 
         <div class="card card-low">
-          <div class="text-label-sm" style="color: var(--text-muted);">Algorithmic Precision</div>
-          <div class="text-headline-xl" style="color: var(--blue-light); margin-top: 4px;">${correctness}</div>
-          <div class="text-code-sm" style="color: var(--text-mid); margin-top: 2px;">Deterministic Test Pass Rate</div>
+          <div class="text-label-sm" style="color: var(--text-muted);">Core Correctness (40%)</div>
+          <div class="text-headline-xl" style="color: var(--blue-light); margin-top: 4px;">
+            ${scores.correctness !== null && scores.correctness !== undefined ? `${scores.correctness}%` : 'Pending'}
+          </div>
+          <div class="text-code-sm" style="color: var(--text-mid); margin-top: 2px;">Deterministic Base Suite</div>
         </div>
 
         <div class="card card-low">
-          <div class="text-label-sm" style="color: var(--text-muted);">AI Collaboration Index</div>
-          <div class="text-headline-xl" style="color: var(--amber-light); margin-top: 4px;">${autonomy}</div>
-          <div class="text-code-sm" style="color: var(--text-mid); margin-top: 2px;">Autonomy vs Guidance Ratio</div>
+          <div class="text-label-sm" style="color: var(--text-muted);">VERIFY Ability (20%)</div>
+          <div class="text-headline-xl" style="color: var(--amber-light); margin-top: 4px;">
+            ${scores.verify !== null && scores.verify !== undefined ? `${scores.verify}%` : 'Not Attempted'}
+          </div>
+          <div class="text-code-sm" style="color: var(--text-mid); margin-top: 2px;">Defect Diagnosis &amp; Validation</div>
         </div>
 
         <div class="card card-low">
-          <div class="text-label-sm" style="color: var(--text-muted);">Adaptability (Follow-up)</div>
-          <div class="text-headline-xl" style="color: ${scores.adaptability ? 'var(--emerald)' : 'var(--text-muted)'}; margin-top: 4px;">${adaptability}</div>
-          <div class="text-code-sm" style="color: var(--text-mid); margin-top: 2px;">Counterfactual Challenge</div>
+          <div class="text-label-sm" style="color: var(--text-muted);">ADAPT Ability (25%)</div>
+          <div class="text-headline-xl" style="color: ${scores.adaptability ? 'var(--emerald)' : 'var(--text-muted)'}; margin-top: 4px;">
+            ${scores.adaptability !== null && scores.adaptability !== undefined ? `${scores.adaptability}%` : 'Pending'}
+          </div>
+          <div class="text-code-sm" style="color: var(--text-mid); margin-top: 2px;">Follow-Up &amp; Non-Regression</div>
         </div>
       </div>
 
-      <!-- Detailed Breakdown Table -->
+      <!-- 5-Dimension Competency Rubric Table -->
       <div class="card card-low" style="padding: 0; overflow: hidden; margin-bottom: 24px;">
         <div style="padding: 16px 20px; border-bottom: 1px solid var(--border-structural); display: flex; justify-content: space-between; align-items: center;">
-          <h2 class="text-headline-md" style="font-size: 16px;">Core Competency Telemetry Evidence</h2>
+          <h2 class="text-headline-md" style="font-size: 16px;">Assessment Rubric Telemetry (assessment-rubric-v1)</h2>
           <span class="badge badge-neutral">Cryptographically Verified: ${report.tamperEvidentHash || '0x9f4a2'}</span>
         </div>
 
         <table class="data-table" style="width: 100%; border-collapse: collapse; text-align: left;">
           <thead>
             <tr style="border-bottom: 1px solid var(--border-structural); background: rgba(16,27,23,0.5);">
-              <th style="padding: 12px 16px; font-size: 11px; text-transform: uppercase; color: var(--text-muted);">Competency Dimension</th>
-              <th style="padding: 12px 16px; font-size: 11px; text-transform: uppercase; color: var(--text-muted);">Grounded Score</th>
-              <th style="padding: 12px 16px; font-size: 11px; text-transform: uppercase; color: var(--text-muted);">Telemetry &amp; Execution Proof</th>
-              <th style="padding: 12px 16px; font-size: 11px; text-transform: uppercase; color: var(--text-muted);">Forensic Insight</th>
+              <th style="padding: 12px 16px; font-size: 11px; text-transform: uppercase; color: var(--text-muted);">Rubric Dimension</th>
+              <th style="padding: 12px 16px; font-size: 11px; text-transform: uppercase; color: var(--text-muted);">Weight</th>
+              <th style="padding: 12px 16px; font-size: 11px; text-transform: uppercase; color: var(--text-muted);">Score / Status</th>
+              <th style="padding: 12px 16px; font-size: 11px; text-transform: uppercase; color: var(--text-muted);">Grounded Evidence &amp; Explanation</th>
             </tr>
           </thead>
           <tbody>
-            <tr style="border-bottom: 1px solid rgba(38,60,49,0.3);">
-              <td style="padding: 14px 16px;">
-                <div style="font-weight: 600; color: var(--text-high);">Algorithmic Optimization</div>
-                <div class="text-code-sm" style="color: var(--text-muted);">Data structures &amp; complexity</div>
-              </td>
-              <td style="padding: 14px 16px;">
-                <span class="badge ${scores.correctness >= 80 ? 'badge-pass' : 'badge-fail'}">${scores.correctness !== null ? `${scores.correctness} / 100` : 'No Data'}</span>
-              </td>
-              <td class="text-code-sm" style="padding: 14px 16px; color: var(--text-mid);">
-                ${evidence.correctness || 'Awaiting execution run.'}
-              </td>
-              <td class="text-body-sm" style="padding: 14px 16px; color: var(--text-mid);">
-                ${scores.correctness === 100 ? 'Candidate preserved first-appearance ordering and avoided quadratic loops.' : 'Ordering or boundary test assertion failed.'}
-              </td>
-            </tr>
-
-            <tr style="border-bottom: 1px solid rgba(38,60,49,0.3);">
-              <td style="padding: 14px 16px;">
-                <div style="font-weight: 600; color: var(--text-high);">AI Collaborative Autonomy</div>
-                <div class="text-code-sm" style="color: var(--text-muted);">Prompting efficacy &amp; critical synthesis</div>
-              </td>
-              <td style="padding: 14px 16px;">
-                <span class="badge badge-ai">${scores.autonomy} / 100</span>
-              </td>
-              <td class="text-code-sm" style="padding: 14px 16px; color: var(--text-mid);">
-                ${evidence.autonomy || 'Independent execution without hallucinations.'}
-              </td>
-              <td class="text-body-sm" style="padding: 14px 16px; color: var(--text-mid);">
-                Utilized AI guidance as a diagnostic sounding board without blind copy-pasting.
-              </td>
-            </tr>
-
-            <tr style="border-bottom: 1px solid rgba(38,60,49,0.3);">
-              <td style="padding: 14px 16px;">
-                <div style="font-weight: 600; color: var(--text-high);">Adaptability (Counterfactual)</div>
-                <div class="text-code-sm" style="color: var(--text-muted);">Handling requirement evolution</div>
-              </td>
-              <td style="padding: 14px 16px;">
-                <span class="badge ${scores.adaptability ? 'badge-pass' : 'badge-neutral'}">
-                  ${scores.adaptability !== null ? `${scores.adaptability} / 100` : 'Pending'}
-                </span>
-              </td>
-              <td class="text-code-sm" style="padding: 14px 16px; color: var(--text-mid);">
-                ${evidence.adaptability || 'Counterfactual follow-up challenge not yet attempted.'}
-              </td>
-              <td class="text-body-sm" style="padding: 14px 16px; color: var(--text-mid);">
-                ${scores.adaptability ? 'Demonstrated strong flexibility when requirement shifted to frequency threshold (K>=3).' : 'Toggle to Follow-up mode in Workspace to assess requirement adaptability.'}
-              </td>
-            </tr>
+            ${dimensions.length > 0 ? dimensions.map(dim => `
+              <tr style="border-bottom: 1px solid rgba(38,60,49,0.3);">
+                <td style="padding: 14px 16px;">
+                  <div style="font-weight: 600; color: var(--text-high);">${dim.name}</div>
+                  <div class="text-code-sm" style="color: var(--text-muted); font-size: 11px;">${dim.dimension}</div>
+                </td>
+                <td style="padding: 14px 16px; font-weight: 500; color: var(--text-mid);">
+                  ${dim.weight}%
+                </td>
+                <td style="padding: 14px 16px;">
+                  <span class="badge ${dim.status === 'measured' ? (dim.earnedPoints > 0 ? 'badge-pass' : 'badge-fail') : (dim.status === 'insufficient_evidence' ? 'badge-warn' : 'badge-neutral')}">
+                    ${dim.status === 'measured' ? `${dim.earnedPoints} / ${dim.maximumPoints} pts` : dim.status}
+                  </span>
+                </td>
+                <td class="text-body-sm" style="padding: 14px 16px; color: var(--text-mid); font-size: 12px; line-height: 1.5;">
+                  ${dim.explanation}
+                </td>
+              </tr>
+            `).join('') : `
+              <tr>
+                <td colspan="4" style="padding: 20px; text-align: center; color: var(--text-muted);">
+                  Awaiting test execution or diagnostic submission.
+                </td>
+              </tr>
+            `}
           </tbody>
         </table>
+      </div>
+
+      <!-- AI Collaboration Telemetry Panel (Zero Arbitrary Penalty Policy) -->
+      <div class="card card-low" style="padding: 16px; margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="material-symbols-outlined" style="color: var(--blue-light);">smart_toy</span>
+            <div class="text-headline-md" style="font-size: 15px;">AI Collaboration Telemetry</div>
+          </div>
+          <span class="badge badge-ai">Zero Arbitrary Penalty Policy</span>
+        </div>
+        <p class="text-body-sm" style="color: var(--text-mid); line-height: 1.5; font-size: 12px;">
+          ${aiCollab.explanation || 'Candidate utilized AI Coach assistance as a diagnostic sounding board. Under TARK AI Phase 4 policy, AI prompt frequency does not incur synthetic score reductions.'}
+        </p>
+        <div style="margin-top: 10px; display: flex; gap: 16px;">
+          <span class="badge badge-neutral">Total AI Prompts: ${aiCollab.totalQueries || 0}</span>
+          <span class="badge badge-neutral">Assistance Logged: ${aiCollab.used ? 'Yes' : 'No'}</span>
+        </div>
       </div>
 
       <!-- Grounded Evidence Timeline Log -->
@@ -1102,20 +1161,72 @@ function attachEventListeners() {
   const modeBaseBtn = document.querySelector('#modeBaseBtn');
   if (modeBaseBtn) {
     modeBaseBtn.addEventListener('click', () => {
-      if (state.isFollowUp) {
-        state.isFollowUp = false;
-        scheduleAutoSave();
-        renderApp();
-      }
+      state.isFollowUp = false;
+      state.isVerifyMode = false;
+      scheduleAutoSave();
+      renderApp();
     });
   }
 
   const modeFollowUpBtn = document.querySelector('#modeFollowUpBtn');
   if (modeFollowUpBtn) {
     modeFollowUpBtn.addEventListener('click', () => {
-      if (!state.isFollowUp) {
-        state.isFollowUp = true;
-        scheduleAutoSave();
+      state.isFollowUp = true;
+      state.isVerifyMode = false;
+      scheduleAutoSave();
+      renderApp();
+    });
+  }
+
+  const modeVerifyBtn = document.querySelector('#modeVerifyBtn');
+  if (modeVerifyBtn) {
+    modeVerifyBtn.addEventListener('click', () => {
+      state.isVerifyMode = true;
+      renderApp();
+    });
+  }
+
+  // Radio selection for verify
+  document.querySelectorAll('input[name="verifyOption"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      state.verifySelection = e.target.value;
+    });
+  });
+
+  // Submit verify task
+  const submitVerifyBtn = document.querySelector('#submitVerifyBtn');
+  if (submitVerifyBtn) {
+    submitVerifyBtn.addEventListener('click', async () => {
+      if (state.verifySubmitting) return;
+      state.verifySubmitting = true;
+      renderApp();
+      const currentSessionId = state.candidate.sessionId || '#TRK-8821';
+      try {
+        const res = await fetch(`${API_BASE}/verify/evaluate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            defectId: 'DEFECT-ORDERING-01',
+            selectedOption: state.verifySelection || 'B',
+            code: state.code,
+            sessionId: currentSessionId
+          })
+        });
+        const result = await res.json();
+        if (result && result.data) {
+          state.verifyFeedback = result.data;
+        }
+        // Refresh decision trail and skill report
+        const [trailRes, reportRes] = await Promise.all([
+          fetch(`${API_BASE}/reports/decision-trail?sessionId=${encodeURIComponent(currentSessionId)}`).then(r => r.json()).catch(() => null),
+          fetch(`${API_BASE}/reports/skill-report?sessionId=${encodeURIComponent(currentSessionId)}`).then(r => r.json()).catch(() => null)
+        ]);
+        if (trailRes && trailRes.data) state.decisionTrail = trailRes.data;
+        if (reportRes && reportRes.data) state.skillReport = reportRes.data;
+      } catch (err) {
+        console.error('Failed to evaluate verify task:', err);
+      } finally {
+        state.verifySubmitting = false;
         renderApp();
       }
     });

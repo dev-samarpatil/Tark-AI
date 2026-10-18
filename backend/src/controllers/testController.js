@@ -69,6 +69,23 @@ export const runTests = async (req, res) => {
   // Execute in isolated Python child process via testHarness
   const execution = await PythonRunner.execute(code, { mode, isFollowUp, executionId });
 
+  // Evaluate regression preservation if running in follow-up mode
+  let hasRegression = false;
+  let regressionDetails = null;
+  if (execution.isFollowUp || mode === 'follow-up') {
+    try {
+      const baseCheck = await PythonRunner.execute(code, { mode: 'base', isFollowUp: false });
+      if (baseCheck.status !== 'completed' || baseCheck.summary.failed > 0) {
+        hasRegression = true;
+        regressionDetails = {
+          failedBaseTests: baseCheck.summary ? baseCheck.summary.failed : 0,
+          passedBaseTests: baseCheck.summary ? baseCheck.summary.passed : 0,
+          status: baseCheck.status
+        };
+      }
+    } catch (_) {}
+  }
+
   // Persist execution and test results atomically
   const savedExecution = ExecutionRepository.saveExecution({
     executionId: execution.executionId,
@@ -79,7 +96,9 @@ export const runTests = async (req, res) => {
     status: execution.status,
     summary: execution.summary,
     results: execution.results,
-    error: execution.error
+    error: execution.error,
+    hasRegression,
+    regressionDetails
   });
 
   // Mirror to mockDatabase for backward compatibility
@@ -148,6 +167,8 @@ export const runTests = async (req, res) => {
     status: savedExecution.status,
     mode: savedExecution.mode,
     isFollowUp: savedExecution.isFollowUp,
+    hasRegression,
+    regressionDetails,
     message: savedExecution.error || (savedExecution.success ? 'Test suite executed successfully' : 'Test suite completed with failures'),
     results: savedExecution.results,
     summary: savedExecution.summary,

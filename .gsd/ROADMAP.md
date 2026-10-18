@@ -1,32 +1,38 @@
 ---
-milestone: Phase 3 — Persistent Assessment State & Evidence Integrity
-version: 3.0.0
-updated: 2026-10-18T16:30:00Z
+milestone: Phase 4 — Assessment Intelligence, Evidence-Grounded Scoring & Skill Verification
+version: 4.0.0
+updated: 2026-10-18T17:10:00Z
 ---
 
 # Roadmap
 
-> **Current Milestone:** Phase 3 — Persistent Assessment State & Evidence Integrity
+> **Current Milestone:** Phase 4 — Assessment Intelligence, Evidence-Grounded Scoring & Skill Verification
 > **Status:** 🟢 Complete
 
-## Milestone 3.0 Must-Haves
-- [x] Pre-Flight Architecture & Persistence Audit (`.gsd/AUDIT_PHASE3.md`)
-- [x] Phase 3 Specification & Implementation Plan (`.gsd/SPEC_PHASE3.md`, `.gsd/PLAN_PHASE3.md`)
+## Milestone 4.0 Must-Haves
+- [x] Pre-Implementation Codebase Audit & Gap Analysis (`docs/phase4/AUDIT_PHASE4.md`)
+- [x] Phase 4 Specification & Implementation Plan (`docs/phase4/SPEC_PHASE4.md`, `docs/phase4/PHASE_4_IMPLEMENTATION_PLAN.md`)
+- [x] Deterministic Scoring Rubric (`assessment-rubric-v1`, `docs/phase4/PHASE_4_SCORING_RUBRIC.md`)
+- [x] Deterministic Assessment Engine (`backend/src/services/assessmentEngine.js`)
+- [x] VERIFY Assessment Mode & Defect Diagnosis (`DEFECT-ORDERING-01`, `/api/verify/*`)
+- [x] ADAPT Assessment Mode & Follow-up Base Regression Detection (`hasRegression` flag)
+- [x] Zero Arbitrary Penalty AI Collaboration Policy (Transparent Telemetry)
+- [x] Protected Lifecycle Management (`POST /api/shutdown` token security & 403 enforcement)
+- [x] Frontend Cockpit Enhancements (3-Mode Selector, VERIFY Challenge UI, 5-Dimension Rubric View)
+- [x] Automated Phase 4 Verification Suite (`scripts/verify-phase4.js`, 20/20 Pass)
+- [x] Consolidated Regression Suite (Phase 1: 7/7, Phase 2: 19/19, Phase 3: 23/23, Frontend Build: 0 errors)
+- [x] Targeted Browser Smoke Test (`browser_subagent`)
+- [x] Comprehensive Documentation (`PHASE_4_TEST_REPORT.md`, `PHASE_4_IMPLEMENTATION_REPORT.md`)
+
+---
+
+## Historical Milestones
+
+### Milestone 3.0: Persistent Assessment State & Evidence Integrity (Checkpoint: 82f9eea)
 - [x] ACID SQLite Persistence Layer (`db.js`, WAL mode, foreign keys, zero external npm deps)
 - [x] Repository Layer (`sessionRepository`, `executionRepository`, `eventRepository`, `chatRepository`, `reportRepository`)
-- [x] Session Lifecycle State Machine & Idempotent Creation
-- [x] Atomic Code Execution & Child Test Outcomes Storage
-- [x] Decision Trail Telemetry Persistence & Secret Scrubbing
-- [x] AI Coach Multi-Turn Chat Persistence with Groq & Fallback Attribution
-- [x] Evidence-Grounded Skill Report Derivation with Cryptographic Tamper-Evident Hash
-- [x] Frontend Session Recovery, Auto-Save, and Refresh Persistence
-- [x] 23-Test Verification Suite (`scripts/verify-phase3.js`, 100% Pass)
 - [x] Real Cold Process Restart Survival Verification (Survives process crash/reboot)
-- [x] Phase 1 Regression Passing (`scripts/verify-assessment.js`, 7/7 suites)
-- [x] Phase 2 AI Coach Regression Passing (`scripts/verify-ai-coach.js`, 19/19 tests)
-- [x] Frontend Production Build Passing (`npm run build`, 0 errors)
-- [x] End-to-End Browser Acceptance Scenario Verified & Recorded on Video
-- [x] Comprehensive Implementation Report (`.gsd/PHASE_3_IMPLEMENTATION_REPORT.md`)
+- [x] 23-Test Verification Suite (`scripts/verify-phase3.js`, 100% Pass)
 
 ---
 

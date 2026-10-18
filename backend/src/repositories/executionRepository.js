@@ -14,6 +14,8 @@ export class ExecutionRepository {
     summary = {},
     results = [],
     error = null,
+    hasRegression = false,
+    regressionDetails = null,
     createdAt = null
   }) {
     const canonicalId = executionId || `exec_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
@@ -40,8 +42,9 @@ export class ExecutionRepository {
       const insertExec = db.prepare(`
         INSERT INTO executions (
           id, session_id, challenge_id, mode, is_follow_up, status,
-          total_tests, passed_tests, failed_tests, runtime, error, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          total_tests, passed_tests, failed_tests, runtime, error,
+          has_regression, regression_details, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       insertExec.run(
@@ -56,6 +59,8 @@ export class ExecutionRepository {
         failed,
         runtime,
         error,
+        hasRegression ? 1 : 0,
+        regressionDetails ? JSON.stringify(regressionDetails) : null,
         now
       );
 
@@ -134,6 +139,8 @@ export class ExecutionRepository {
       },
       results: formattedTests,
       testResults: formattedTests,
+      hasRegression: Boolean(row.has_regression),
+      regressionDetails: row.regression_details ? JSON.parse(row.regression_details) : null,
       error: row.error,
       errorMessage: row.error,
       createdAt: row.created_at
