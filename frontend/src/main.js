@@ -17,6 +17,8 @@ const state = {
     timeRemaining: '24:18',
     status: 'In Progress'
   },
+  groqConfigured: false,
+  groqModel: '',
   code: `# Task: Return duplicates in the order of their FIRST appearance
 from typing import List
 
@@ -73,7 +75,11 @@ async function fetchSessionData() {
     ]);
 
     if (sessRes && sessRes.data) state.candidate = { ...state.candidate, ...sessRes.data };
-    if (chatRes && chatRes.data) state.chatMessages = chatRes.data;
+    if (chatRes && chatRes.data) {
+      state.chatMessages = chatRes.data;
+      state.groqConfigured = Boolean(chatRes.groqConfigured);
+      state.groqModel = chatRes.model || '';
+    }
     if (trailRes && trailRes.data) state.decisionTrail = trailRes.data;
     if (reportRes && reportRes.data) state.skillReport = reportRes.data;
   } catch (err) {
@@ -173,17 +179,50 @@ async function sendChatMessageAPI(text) {
     const res = await fetch(`${API_BASE}/ai/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text.trim() })
+      body: JSON.stringify({
+        message: text.trim(),
+        question: text.trim(),
+        code: state.code,
+        mode: state.isFollowUp ? 'follow-up' : 'base',
+        isFollowUp: state.isFollowUp,
+        executionId: state.activeExecutionId,
+        testResults: state.tests && state.tests.length > 0 ? {
+          status: state.executionError ? state.executionError.status : 'completed',
+          summary: state.latestSummary,
+          results: state.tests,
+          error: state.executionError ? state.executionError.message : null
+        } : null
+      })
     });
     const data = await res.json();
-    if (data.success && data.data) {
-      state.chatMessages.push(data.data);
+    if (data.success && (data.data || data.message)) {
+      const msgObj = data.data || {
+        sender: 'ai',
+        text: data.message || data.reply,
+        source: data.source || 'local',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      };
+      state.chatMessages.push(msgObj);
+      if (data.source === 'groq') state.groqConfigured = true;
+    } else {
+      state.chatMessages.push({
+        sender: 'ai',
+        text: `Notice: ${data.error || 'Unable to receive guidance at this moment.'}`,
+        source: 'local',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      });
     }
     // Refresh trail
     const trailRes = await fetch(`${API_BASE}/reports/decision-trail`).then(r => r.json()).catch(() => null);
     if (trailRes && trailRes.data) state.decisionTrail = trailRes.data;
   } catch (err) {
     console.error('Failed to send AI chat:', err);
+    state.chatMessages.push({
+      sender: 'ai',
+      text: 'Communication error: Unable to contact AI Coach backend. Please ensure the server is running on http://localhost:5000.',
+      source: 'local',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    });
   } finally {
     state.isSendingChat = false;
     renderApp();
@@ -532,14 +571,21 @@ ${state.executionError.message}
                   </div>
                   <div>
                     <div class="text-headline-md" style="font-size: 14px;">AI Coach</div>
-                    <div class="text-label-sm" style="color: var(--blue-light); text-transform: none;">Deterministic Diagnostic Engine</div>
+                    <div class="text-label-sm" style="color: var(--blue-light); text-transform: none;">
+                      ${state.groqConfigured ? 'Groq Live AI Integration' : 'Deterministic Diagnostic Engine'}
+                    </div>
                   </div>
                 </div>
-                <span style="width: 8px; height: 8px; border-radius: 50%; background: var(--blue-light); animation: ping 1.5s infinite;"></span>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span class="badge ${state.groqConfigured ? 'badge-pass' : 'badge-neutral'}" style="font-size: 9px; padding: 2px 6px;">
+                    ${state.groqConfigured ? 'GROQ ACTIVE' : 'LOCAL ONLY'}
+                  </span>
+                  <span style="width: 8px; height: 8px; border-radius: 50%; background: ${state.groqConfigured ? 'var(--emerald)' : 'var(--blue-light)'}; animation: ping 1.5s infinite;"></span>
+                </div>
               </div>
 
               <p class="text-body-sm" style="color: var(--text-muted); margin-bottom: 10px; font-size: 11px;">
-                Guidance derived from actual Python test failure assertions. All interactions are logged in your Decision Trail.
+                ${state.groqConfigured ? 'Context-aware coaching via Groq LLM with deterministic local fallback.' : 'Guidance derived from actual Python test failure assertions.'} Interactions log to Decision Trail.
               </p>
 
               <!-- Quick query chips -->
@@ -561,21 +607,26 @@ ${state.executionError.message}
                     <div class="text-body-sm" style="color: var(--text-high);">${msg.text}</div>
                   </div>
                 ` : `
-                  <div style="background: var(--surface-1); border: 1px solid rgba(59,130,246,0.3); padding: 10px; border-radius: 8px;">
+                  <div style="background: var(--surface-1); border: 1px solid ${msg.source === 'groq' ? 'rgba(0,217,145,0.3)' : 'rgba(59,130,246,0.3)'}; padding: 10px; border-radius: 8px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                      <div style="display: flex; align-items: center; gap: 4px; color: var(--blue-light);" class="text-code-sm">
-                        <span class="material-symbols-outlined icon-xs">auto_awesome</span>
-                        <span style="font-weight: 600;">${msg.source === 'groq' ? 'AI Coach (Groq Live)' : 'AI Diagnostic Engine (Local)'}</span>
+                      <div style="display: flex; align-items: center; gap: 6px;" class="text-code-sm">
+                        <span class="material-symbols-outlined icon-xs" style="color: ${msg.source === 'groq' ? 'var(--emerald)' : 'var(--blue-light)'};">auto_awesome</span>
+                        <span style="font-weight: 600; color: ${msg.source === 'groq' ? 'var(--emerald)' : 'var(--blue-light)'};">
+                          ${msg.source === 'groq' ? 'AI Coach (Groq)' : 'AI Diagnostic Engine'}
+                        </span>
+                        <span class="badge ${msg.source === 'groq' ? 'badge-pass' : 'badge-neutral'}" style="font-size: 9px; padding: 1px 6px;">
+                          ${msg.source === 'groq' ? 'GROQ AI' : 'LOCAL FALLBACK'}
+                        </span>
                       </div>
                       <span class="text-code-sm" style="font-size: 10px; color: var(--text-muted);">${msg.timestamp || ''}</span>
                     </div>
-                    <div class="text-body-sm" style="color: var(--text-mid); line-height: 1.5; white-space: pre-wrap;">${msg.text}</div>
+                    <div class="text-body-sm" style="color: var(--text-high); line-height: 1.5; white-space: pre-wrap;">${msg.text}</div>
                   </div>
                 `).join('')}
                 ${state.isSendingChat ? `
                   <div style="background: var(--surface-1); padding: 8px; border-radius: 6px; color: var(--blue-light); font-size: 11px; display: flex; align-items: center; gap: 6px;">
                     <span class="material-symbols-outlined icon-xs animate-spin">sync</span>
-                    <span>Analyzing code assertions...</span>
+                    <span>Analyzing code and execution evidence...</span>
                   </div>
                 ` : ''}
               </div>
@@ -584,9 +635,9 @@ ${state.executionError.message}
             <!-- Chat input -->
             <div style="margin-top: 12px;">
               <form id="chatForm" style="position: relative;">
-                <input id="chatInput" class="input-field" type="text" placeholder="Ask AI Coach for architectural hint..." style="padding-right: 36px; width: 100%;" />
-                <button type="submit" aria-label="Send" style="position: absolute; right: 8px; top: 8px; color: var(--emerald);">
-                  <span class="material-symbols-outlined icon-sm">send</span>
+                <input id="chatInput" class="input-field" type="text" placeholder="Ask AI Coach for architectural hint..." style="padding-right: 36px; width: 100%;" ${state.isSendingChat ? 'disabled' : ''} />
+                <button type="submit" aria-label="Send" style="position: absolute; right: 8px; top: 8px; color: ${state.isSendingChat ? 'var(--text-muted)' : 'var(--emerald)'};" ${state.isSendingChat ? 'disabled' : ''}>
+                  <span class="material-symbols-outlined icon-sm">${state.isSendingChat ? 'sync' : 'send'}</span>
                 </button>
               </form>
               <div class="text-code-sm" style="color: var(--text-muted); text-align: center; margin-top: 6px; font-size: 10px;">
