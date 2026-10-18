@@ -565,7 +565,7 @@ ${state.executionError.message}
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                       <div style="display: flex; align-items: center; gap: 4px; color: var(--blue-light);" class="text-code-sm">
                         <span class="material-symbols-outlined icon-xs">auto_awesome</span>
-                        <span style="font-weight: 600;">AI Diagnostic Engine</span>
+                        <span style="font-weight: 600;">${msg.source === 'groq' ? 'AI Coach (Groq Live)' : 'AI Diagnostic Engine (Local)'}</span>
                       </div>
                       <span class="text-code-sm" style="font-size: 10px; color: var(--text-muted);">${msg.timestamp || ''}</span>
                     </div>
