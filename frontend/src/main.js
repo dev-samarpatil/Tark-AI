@@ -64,19 +64,85 @@ if __name__ == "__main__":
   skillReport: null
 };
 
+// ── Auto-save debounce helper ───────────────────────────────────────
+let autoSaveTimeout = null;
+function scheduleAutoSave() {
+  if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+  autoSaveTimeout = setTimeout(() => {
+    const sid = state.candidate.sessionId || '#TRK-8821';
+    fetch(`${API_BASE}/session`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: sid,
+        currentCode: state.code,
+        currentMode: state.isFollowUp ? 'follow-up' : 'base'
+      })
+    }).catch(() => {});
+  }, 800);
+}
+
 // ── API Client Utilities ───────────────────────────────────────────
 async function fetchSessionData() {
   try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetSessionId = urlParams.get('sessionId') || localStorage.getItem('tark_session_id') || state.candidate.sessionId || '#TRK-8821';
+
     const [sessRes, chatRes, trailRes, reportRes] = await Promise.all([
-      fetch(`${API_BASE}/session`).then(r => r.json()).catch(() => null),
-      fetch(`${API_BASE}/ai/chat`).then(r => r.json()).catch(() => null),
-      fetch(`${API_BASE}/reports/decision-trail`).then(r => r.json()).catch(() => null),
-      fetch(`${API_BASE}/reports/skill-report`).then(r => r.json()).catch(() => null)
+      fetch(`${API_BASE}/session?sessionId=${encodeURIComponent(targetSessionId)}`).then(r => r.json()).catch(() => null),
+      fetch(`${API_BASE}/ai/chat?sessionId=${encodeURIComponent(targetSessionId)}`).then(r => r.json()).catch(() => null),
+      fetch(`${API_BASE}/reports/decision-trail?sessionId=${encodeURIComponent(targetSessionId)}`).then(r => r.json()).catch(() => null),
+      fetch(`${API_BASE}/reports/skill-report?sessionId=${encodeURIComponent(targetSessionId)}`).then(r => r.json()).catch(() => null)
     ]);
 
-    if (sessRes && sessRes.data) state.candidate = { ...state.candidate, ...sessRes.data };
+    if (sessRes && sessRes.data) {
+      const sess = sessRes.data;
+      state.candidate = {
+        ...state.candidate,
+        sessionId: sess.sessionId || sess.id || targetSessionId,
+        name: sess.candidateName || state.candidate.name,
+        role: sess.role || state.candidate.role,
+        status: sess.status ? (sess.status === 'completed' ? 'Completed' : (sess.status === 'in_progress' ? 'In Progress' : sess.status)) : state.candidate.status
+      };
+      try {
+        localStorage.setItem('tark_session_id', state.candidate.sessionId);
+      } catch (e) {}
+
+      if (sess.currentCode && sess.currentCode.trim()) {
+        state.code = sess.currentCode;
+      }
+      if (sess.currentMode) {
+        state.isFollowUp = (sess.currentMode === 'follow-up');
+      }
+
+      // Restore latest execution results if available
+      if (sess.executions && sess.executions.length > 0) {
+        const latestExec = sess.executions[0];
+        state.activeExecutionId = latestExec.executionId;
+        if (latestExec.testResults && latestExec.testResults.length > 0) {
+          state.tests = latestExec.testResults;
+        }
+        state.latestSummary = {
+          total: latestExec.totalTests || (state.tests ? state.tests.length : 5),
+          passed: latestExec.passedTests || 0,
+          failed: latestExec.failedTests || 0,
+          runtime: latestExec.durationMs ? `${latestExec.durationMs}ms` : '45ms'
+        };
+        if (latestExec.status === 'syntax_error' || latestExec.status === 'runtime_error' || latestExec.status === 'timeout' || latestExec.status === 'runner_error') {
+          state.executionError = {
+            status: latestExec.status,
+            message: latestExec.errorMessage || 'Execution failed'
+          };
+        } else {
+          state.executionError = null;
+        }
+      }
+    }
+
     if (chatRes && chatRes.data) {
-      state.chatMessages = chatRes.data;
+      if (Array.isArray(chatRes.data) && chatRes.data.length > 0) {
+        state.chatMessages = chatRes.data;
+      }
       state.groqConfigured = Boolean(chatRes.groqConfigured);
       state.groqModel = chatRes.model || '';
     }
@@ -97,6 +163,7 @@ async function runTestsAPI() {
   renderApp();
 
   try {
+    const currentSessionId = state.candidate.sessionId || '#TRK-8821';
     const res = await fetch(`${API_BASE}/tests/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -104,7 +171,8 @@ async function runTestsAPI() {
         code: state.code,
         mode: state.isFollowUp ? 'follow-up' : 'base',
         isFollowUp: state.isFollowUp,
-        executionId
+        executionId,
+        sessionId: currentSessionId
       })
     });
     const data = await res.json();
@@ -142,10 +210,10 @@ async function runTestsAPI() {
       }
     }
 
-    // Refresh Decision Trail and Skill Report in background
+    // Refresh Decision Trail and Skill Report in background with session filter
     const [trailRes, reportRes] = await Promise.all([
-      fetch(`${API_BASE}/reports/decision-trail`).then(r => r.json()).catch(() => null),
-      fetch(`${API_BASE}/reports/skill-report`).then(r => r.json()).catch(() => null)
+      fetch(`${API_BASE}/reports/decision-trail?sessionId=${encodeURIComponent(currentSessionId)}`).then(r => r.json()).catch(() => null),
+      fetch(`${API_BASE}/reports/skill-report?sessionId=${encodeURIComponent(currentSessionId)}`).then(r => r.json()).catch(() => null)
     ]);
     if (trailRes && trailRes.data) state.decisionTrail = trailRes.data;
     if (reportRes && reportRes.data) state.skillReport = reportRes.data;
@@ -176,6 +244,7 @@ async function sendChatMessageAPI(text) {
   renderApp();
 
   try {
+    const currentSessionId = state.candidate.sessionId || '#TRK-8821';
     const res = await fetch(`${API_BASE}/ai/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -186,6 +255,7 @@ async function sendChatMessageAPI(text) {
         mode: state.isFollowUp ? 'follow-up' : 'base',
         isFollowUp: state.isFollowUp,
         executionId: state.activeExecutionId,
+        sessionId: currentSessionId,
         testResults: state.tests && state.tests.length > 0 ? {
           status: state.executionError ? state.executionError.status : 'completed',
           summary: state.latestSummary,
@@ -213,7 +283,7 @@ async function sendChatMessageAPI(text) {
       });
     }
     // Refresh trail
-    const trailRes = await fetch(`${API_BASE}/reports/decision-trail`).then(r => r.json()).catch(() => null);
+    const trailRes = await fetch(`${API_BASE}/reports/decision-trail?sessionId=${encodeURIComponent(currentSessionId)}`).then(r => r.json()).catch(() => null);
     if (trailRes && trailRes.data) state.decisionTrail = trailRes.data;
   } catch (err) {
     console.error('Failed to send AI chat:', err);
@@ -995,6 +1065,7 @@ function attachEventListeners() {
   if (editor) {
     editor.addEventListener('input', (e) => {
       state.code = e.target.value;
+      scheduleAutoSave();
     });
 
     editor.addEventListener('keydown', (e) => {
@@ -1005,6 +1076,7 @@ function attachEventListeners() {
         editor.value = editor.value.substring(0, start) + '    ' + editor.value.substring(end);
         editor.selectionStart = editor.selectionEnd = start + 4;
         state.code = editor.value;
+        scheduleAutoSave();
       }
     });
   }
@@ -1022,6 +1094,7 @@ function attachEventListeners() {
   if (toggleBtn) {
     toggleBtn.addEventListener('click', () => {
       state.isFollowUp = !state.isFollowUp;
+      scheduleAutoSave();
       renderApp();
     });
   }
@@ -1031,6 +1104,7 @@ function attachEventListeners() {
     modeBaseBtn.addEventListener('click', () => {
       if (state.isFollowUp) {
         state.isFollowUp = false;
+        scheduleAutoSave();
         renderApp();
       }
     });
@@ -1041,6 +1115,7 @@ function attachEventListeners() {
     modeFollowUpBtn.addEventListener('click', () => {
       if (!state.isFollowUp) {
         state.isFollowUp = true;
+        scheduleAutoSave();
         renderApp();
       }
     });
@@ -1071,6 +1146,7 @@ def find_duplicates(nums: List[int]) -> List[int]:
     return [x for x in counts if counts[x] > 1]
 `;
       }
+      scheduleAutoSave();
       renderApp();
     });
   }
@@ -1078,8 +1154,27 @@ def find_duplicates(nums: List[int]) -> List[int]:
   // Submit assessment button
   const submitBtn = document.querySelector('#submitAssessmentBtn');
   if (submitBtn) {
-    submitBtn.addEventListener('click', () => {
+    submitBtn.addEventListener('click', async () => {
+      const currentSessionId = state.candidate.sessionId || '#TRK-8821';
+      try {
+        await fetch(`${API_BASE}/session`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId: currentSessionId,
+            status: 'completed',
+            currentCode: state.code,
+            currentMode: state.isFollowUp ? 'follow-up' : 'base'
+          })
+        });
+        state.candidate.status = 'Completed';
+      } catch (err) {
+        console.warn('Failed to submit session:', err);
+      }
       state.currentView = 'skill-report';
+      // Refresh report
+      const reportRes = await fetch(`${API_BASE}/reports/skill-report?sessionId=${encodeURIComponent(currentSessionId)}`).then(r => r.json()).catch(() => null);
+      if (reportRes && reportRes.data) state.skillReport = reportRes.data;
       renderApp();
     });
   }

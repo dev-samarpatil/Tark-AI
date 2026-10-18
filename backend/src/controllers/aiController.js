@@ -1,5 +1,9 @@
-import { mockDatabase } from '../data/mockDatabase.js';
 import { GroqService } from '../services/groqService.js';
+import { ChatRepository } from '../repositories/chatRepository.js';
+import { EventRepository } from '../repositories/eventRepository.js';
+import { ExecutionRepository } from '../repositories/executionRepository.js';
+import { SessionRepository } from '../repositories/sessionRepository.js';
+import { mockDatabase } from '../data/mockDatabase.js';
 
 /**
  * Deterministic diagnostic engine providing failure-grounded guidance
@@ -49,9 +53,16 @@ function generateDeterministicGuidance(latestExec, userQuestion = '', isFollowUp
 }
 
 export const getChatHistory = (req, res) => {
+  const sessionId = req.query.sessionId || req.headers['x-session-id'] || '#TRK-8821';
+  let messages = ChatRepository.getMessages(sessionId);
+
+  if (messages.length === 0 && sessionId === '#TRK-8821') {
+    messages = mockDatabase.chatMessages;
+  }
+
   res.json({
     success: true,
-    data: mockDatabase.chatMessages,
+    data: messages,
     groqConfigured: GroqService.isConfigured(),
     model: GroqService.getModel()
   });
@@ -60,35 +71,43 @@ export const getChatHistory = (req, res) => {
 export const sendChatMessage = async (req, res) => {
   // 1. Input validation
   if (!req.body || typeof req.body !== 'object') {
-    return res.status(400).json({ success: false, error: 'Request body must be a JSON object.' });
+    return res.status(400).json({ success: false, error: 'Request body must be a JSON object.', code: 'VALIDATION_ERROR' });
   }
 
   const rawMsg = req.body.message !== undefined ? req.body.message : req.body.question;
   if (rawMsg === undefined || rawMsg === null || typeof rawMsg !== 'string') {
-    return res.status(400).json({ success: false, error: 'Question or message must be a string.' });
+    return res.status(400).json({ success: false, error: 'Question or message must be a string.', code: 'VALIDATION_ERROR' });
   }
 
   const trimmedMsg = rawMsg.trim();
   if (!trimmedMsg) {
-    return res.status(400).json({ success: false, error: 'Question or message cannot be empty.' });
+    return res.status(400).json({ success: false, error: 'Question or message cannot be empty.', code: 'VALIDATION_ERROR' });
   }
 
   if (trimmedMsg.length > 2000) {
-    return res.status(400).json({ success: false, error: 'Question exceeds maximum length of 2000 characters.' });
+    return res.status(400).json({ success: false, error: 'Question exceeds maximum length of 2000 characters.', code: 'VALIDATION_ERROR' });
   }
 
   if (req.body.mode && !['base', 'follow-up'].includes(req.body.mode)) {
-    return res.status(400).json({ success: false, error: 'Invalid mode specified. Allowed: base, follow-up.' });
+    return res.status(400).json({ success: false, error: 'Invalid mode specified. Allowed: base, follow-up.', code: 'VALIDATION_ERROR' });
   }
 
   const hintLevel = req.body.hintLevel !== undefined ? Number(req.body.hintLevel) : 1;
   if (![1, 2, 3, 4].includes(hintLevel)) {
-    return res.status(400).json({ success: false, error: 'Invalid hint level. Allowed: 1, 2, 3, 4.' });
+    return res.status(400).json({ success: false, error: 'Invalid hint level. Allowed: 1, 2, 3, 4.', code: 'VALIDATION_ERROR' });
   }
 
+  const sessionId = req.body.sessionId || req.query.sessionId || req.headers['x-session-id'] || '#TRK-8821';
   const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-  // Record candidate prompt
+  // Record candidate prompt in durable storage and memory mirror
+  ChatRepository.addMessage({
+    sessionId,
+    sender: 'candidate',
+    text: trimmedMsg,
+    timestamp
+  });
+
   mockDatabase.chatMessages.push({
     sender: 'candidate',
     text: trimmedMsg,
@@ -96,10 +115,11 @@ export const sendChatMessage = async (req, res) => {
   });
 
   // 2. Resolve Assessment Context
-  const mode = req.body.mode || (req.body.isFollowUp ? 'follow-up' : (mockDatabase.latestExecution?.isFollowUp ? 'follow-up' : 'base'));
+  const session = SessionRepository.getSession(sessionId);
+  const mode = req.body.mode || (req.body.isFollowUp ? 'follow-up' : (session?.activeMode || 'base'));
   const isFollowUp = mode === 'follow-up' || Boolean(req.body.isFollowUp);
-  const currentCode = req.body.code !== undefined ? String(req.body.code).slice(0, 15000) : mockDatabase.currentCode;
-  const executionId = req.body.executionId || req.body.testResults?.executionId || mockDatabase.latestExecution?.executionId || null;
+  const currentCode = req.body.code !== undefined ? String(req.body.code).slice(0, 15000) : (session?.currentCode || mockDatabase.currentCode);
+  const executionId = req.body.executionId || req.body.testResults?.executionId || null;
 
   let latestExec = null;
   if (req.body.testResults && typeof req.body.testResults === 'object') {
@@ -112,16 +132,18 @@ export const sendChatMessage = async (req, res) => {
       executionId
     };
   } else {
-    latestExec = mockDatabase.latestExecution;
+    latestExec = ExecutionRepository.getLatestExecution(sessionId) || mockDatabase.latestExecution;
   }
 
   const problem = req.body.problemStatement
     ? { description: String(req.body.problemStatement).slice(0, 5000), followUpDescription: String(req.body.problemStatement).slice(0, 5000) }
-    : mockDatabase.candidate.problem;
+    : (session?.problem || mockDatabase.candidate.problem);
 
   let guidanceText = '';
   let source = 'local';
   let fallbackUsed = false;
+
+  const chatHistory = ChatRepository.getMessages(sessionId);
 
   // 3. Query Groq or use Deterministic Fallback
   if (GroqService.isConfigured()) {
@@ -131,7 +153,7 @@ export const sendChatMessage = async (req, res) => {
         currentCode,
         problem,
         latestExecution: latestExec,
-        history: mockDatabase.chatMessages,
+        history: chatHistory,
         isFollowUp,
         hintLevel
       });
@@ -174,10 +196,21 @@ export const sendChatMessage = async (req, res) => {
     error: null
   };
 
+  // Persist response in durable database and memory mirror
+  ChatRepository.addMessage({
+    sessionId,
+    sender: 'ai',
+    text: guidanceText,
+    source,
+    fallbackUsed,
+    timestamp: aiResponse.timestamp
+  });
+
   mockDatabase.chatMessages.push(aiResponse);
 
   // 5. Record event in Decision Trail
-  mockDatabase.addEvent({
+  const event = EventRepository.addEvent({
+    sessionId,
     action: source === 'groq' ? 'AI Guidance: Groq Live' : (fallbackUsed ? 'AI Guidance: Local Fallback' : 'AI Guidance: Local Diagnostic'),
     details: `Candidate asked: "${trimmedMsg.slice(0, 60)}${trimmedMsg.length > 60 ? '...' : ''}". Engine: ${source === 'groq' ? 'Groq Live' : 'Deterministic Local'}`,
     type: 'ai',
@@ -192,13 +225,15 @@ export const sendChatMessage = async (req, res) => {
     }
   });
 
+  mockDatabase.decisionTrail.push(event);
+
   // Return backward-compatible response
   res.json({
     success: true,
     message: guidanceText,
     reply: guidanceText,
     data: aiResponse,
-    history: mockDatabase.chatMessages,
+    history: ChatRepository.getMessages(sessionId),
     source,
     mode,
     executionId,
