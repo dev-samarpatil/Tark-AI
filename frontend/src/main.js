@@ -14,6 +14,7 @@ const state = {
   verifySelection: 'B',
   verifySubmitting: false,
   verifyFeedback: null,
+  isSidebarOpen: false,
   candidate: {
     name: 'Aarav Sharma',
     sessionId: '#TRK-8821',
@@ -306,7 +307,7 @@ async function sendChatMessageAPI(text) {
 // ── Component: Sidebar ─────────────────────────────────────────────
 function renderSidebar() {
   return `
-    <aside class="sidebar">
+    <aside class="sidebar ${state.isSidebarOpen ? 'open' : ''}">
       <div class="sidebar-header">
         <div class="sidebar-logo">
           <div class="logo-icon">
@@ -314,7 +315,12 @@ function renderSidebar() {
           </div>
           <h1>TARK <span class="accent">AI</span></h1>
         </div>
-        <span class="sidebar-badge">COCKPIT</span>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span class="sidebar-badge">COCKPIT</span>
+          <button id="sidebarCloseBtn" class="sidebar-close-btn" aria-label="Close navigation">
+            <span class="material-symbols-outlined icon-sm">close</span>
+          </button>
+        </div>
       </div>
 
       <div class="sidebar-body">
@@ -376,6 +382,9 @@ function renderHeader() {
   return `
     <header class="header">
       <div class="header-left">
+        <button id="sidebarToggleBtn" class="mobile-toggle" aria-label="Toggle navigation">
+          <span class="material-symbols-outlined">menu</span>
+        </button>
         <div class="breadcrumb">
           <span class="seg">assessment</span>
           <span class="sep">/</span>
@@ -418,25 +427,28 @@ function renderWorkspaceView() {
   return `
     <div class="page-enter">
       <!-- Session Sub-bar -->
-      <div style="height: 56px; background: #06100d; border-bottom: 1px solid rgba(59,74,65,0.4); display: flex; align-items: center; justify-content: space-between; padding: 0 24px;">
-        <div style="display: flex; align-items: center; gap: 16px;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="width: 10px; height: 10px; border-radius: 50%; background: var(--emerald); box-shadow: 0 0 8px var(--emerald-glow);"></span>
-            <span class="text-headline-md" style="font-size: 16px;">
-              ${state.isFollowUp ? 'Counterfactual Challenge: Deduplication with Frequency >= 3' : 'Find Duplicates in a List'}
+      <div class="workspace-subbar">
+        <div class="subbar-meta">
+          <div class="subbar-title-wrap">
+            <span style="width: 10px; height: 10px; border-radius: 50%; background: var(--emerald); box-shadow: 0 0 8px var(--emerald-glow); flex-shrink: 0;"></span>
+            <span class="subbar-title" title="${state.isVerifyMode ? 'Defect Verification Checkpoint: Ordering Preservation Flaw' : (state.isFollowUp ? 'Counterfactual Challenge: Deduplication with Frequency >= 3' : 'Find Duplicates in a List')}">
+              ${state.isVerifyMode ? 'Verification Checkpoint: Ordering Preservation Flaw' : (state.isFollowUp ? 'Counterfactual Challenge: Frequency >= 3' : 'Find Duplicates in a List')}
             </span>
           </div>
-          <span class="badge badge-neutral" style="gap: 6px;">
-            <span style="width: 6px; height: 6px; border-radius: 50%; background: #387eb8;"></span>
-            Python 3.14
-          </span>
-          <span class="badge badge-warn">
-            <span class="material-symbols-outlined icon-xs">timer</span>
-            ${state.candidate.timeRemaining} remaining
-          </span>
-          ${state.isFollowUp ? '<span class="badge badge-ai">Adaptation Challenge Active</span>' : ''}
+          <div class="subbar-badges">
+            <span class="badge badge-neutral" style="gap: 6px;">
+              <span style="width: 6px; height: 6px; border-radius: 50%; background: #387eb8;"></span>
+              Python 3.14
+            </span>
+            <span class="badge badge-warn">
+              <span class="material-symbols-outlined icon-xs">timer</span>
+              ${state.candidate.timeRemaining} remaining
+            </span>
+            ${state.isFollowUp ? '<span class="badge badge-ai">Adaptation Active</span>' : ''}
+            ${state.isVerifyMode ? '<span class="badge badge-warn">Verify Mode</span>' : ''}
+          </div>
         </div>
-        <div style="display: flex; align-items: center; gap: 10px;">
+        <div class="subbar-actions">
           <button id="loadSolutionTemplateBtn" class="btn btn-outline" title="Load sample candidate solution template">
             <span class="material-symbols-outlined icon-xs">auto_fix_high</span>
             <span>Load Template</span>
@@ -453,9 +465,9 @@ function renderWorkspaceView() {
       </div>
 
       <!-- Main Workspace 3-Column Layout -->
-      <div style="display: grid; grid-template-columns: 290px 1fr 340px; gap: 12px; padding: 12px; min-height: calc(100vh - 120px);">
+      <div class="workspace-grid">
         <!-- Column 1: Problem & Constraints -->
-        <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="workspace-col">
           <div class="card card-low" style="padding: 12px;">
             <div class="text-label-sm" style="color: var(--text-muted); margin-bottom: 8px;">Evaluation Challenge Mode</div>
             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px;">
@@ -499,8 +511,8 @@ function renderWorkspaceView() {
                   { id: 'C', text: 'Negative numbers cannot be hashed by Python sets.' },
                   { id: 'D', text: 'The function returns a list instead of a set.' }
                 ].map(opt => `
-                  <label style="display: flex; align-items: flex-start; gap: 8px; font-size: 11px; color: var(--text-high); background: var(--surface-2); padding: 8px; border-radius: 6px; cursor: pointer; border: 1px solid ${state.verifySelection === opt.id ? 'var(--amber-light)' : 'transparent'};">
-                    <input type="radio" name="verifyOption" value="${opt.id}" ${state.verifySelection === opt.id ? 'checked' : ''} style="margin-top: 2px;" />
+                  <label class="verify-option-card ${state.verifySelection === opt.id ? 'selected' : ''}">
+                    <input type="radio" name="verifyOption" value="${opt.id}" ${state.verifySelection === opt.id ? 'checked' : ''} />
                     <span><strong>Option ${opt.id}:</strong> ${opt.text}</span>
                   </label>
                 `).join('')}
@@ -588,7 +600,7 @@ function renderWorkspaceView() {
         </div>
 
         <!-- Column 2: Code Editor & Test Results -->
-        <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="workspace-col workspace-col-editor" style="display: flex; flex-direction: column; gap: 12px;">
           <!-- Editor -->
           <div class="code-editor" style="flex: 1; min-height: 400px;">
             <div class="code-tab-bar">
@@ -686,7 +698,7 @@ ${state.executionError.message}
         </div>
 
         <!-- Column 3: AI Coach & Interactive Ledger -->
-        <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="workspace-col workspace-col-ai" style="display: flex; flex-direction: column; gap: 12px;">
           <div class="card card-low" style="flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
             <div>
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -722,9 +734,9 @@ ${state.executionError.message}
               </div>
 
               <!-- Message thread -->
-              <div id="chatThread" style="display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto;">
+              <div id="chatThread" class="chat-thread-container">
                 ${state.chatMessages.map(msg => msg.sender === 'candidate' ? `
-                  <div style="background: var(--surface-2); padding: 10px; border-radius: 8px;">
+                  <div class="chat-bubble-candidate">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
                       <span class="text-label-sm" style="color: var(--text-muted);">Candidate</span>
                       <span class="text-code-sm" style="font-size: 10px; color: var(--text-muted);">${msg.timestamp || ''}</span>
@@ -732,8 +744,8 @@ ${state.executionError.message}
                     <div class="text-body-sm" style="color: var(--text-high);">${msg.text}</div>
                   </div>
                 ` : `
-                  <div style="background: var(--surface-1); border: 1px solid ${msg.source === 'groq' ? 'rgba(0,217,145,0.3)' : 'rgba(59,130,246,0.3)'}; padding: 10px; border-radius: 8px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <div class="chat-bubble-ai ${msg.source === 'groq' ? '' : 'local'}">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; gap: 8px; flex-wrap: wrap;">
                       <div style="display: flex; align-items: center; gap: 6px;" class="text-code-sm">
                         <span class="material-symbols-outlined icon-xs" style="color: ${msg.source === 'groq' ? 'var(--emerald)' : 'var(--blue-light)'};">auto_awesome</span>
                         <span style="font-weight: 600; color: ${msg.source === 'groq' ? 'var(--emerald)' : 'var(--blue-light)'};">
@@ -749,7 +761,7 @@ ${state.executionError.message}
                   </div>
                 `).join('')}
                 ${state.isSendingChat ? `
-                  <div style="background: var(--surface-1); padding: 8px; border-radius: 6px; color: var(--blue-light); font-size: 11px; display: flex; align-items: center; gap: 6px;">
+                  <div style="background: var(--surface-1); padding: 8px 12px; border-radius: 6px; color: var(--blue-light); font-size: 11px; display: flex; align-items: center; gap: 6px;">
                     <span class="material-symbols-outlined icon-xs animate-spin">sync</span>
                     <span>Analyzing code and execution evidence...</span>
                   </div>
@@ -815,7 +827,7 @@ function renderDecisionTrailView() {
 
       <!-- Candidate Dossier Card -->
       <div class="card card-accent" style="margin-bottom: 24px; padding: 20px;">
-        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 16px; align-items: center;">
+        <div class="dossier-grid">
           <div style="display: flex; align-items: center; gap: 14px;">
             <img class="profile-avatar" style="width: 52px; height: 52px; border-radius: 12px;" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80" alt="Avatar" />
             <div>
@@ -848,7 +860,7 @@ function renderDecisionTrailView() {
       </div>
 
       <!-- Decision Stream & Code Diff Comparison -->
-      <div style="display: grid; grid-template-columns: 1fr 1.1fr; gap: 16px;">
+      <div class="trail-grid">
         <!-- Timeline Column -->
         <div class="card card-low" style="padding: 16px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
@@ -950,8 +962,8 @@ function renderSkillReportView() {
       </div>
 
       <!-- Overview Cards -->
-      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
-        <div class="card card-low">
+      <div class="report-grid">
+        <div class="card card-low report-benchmark-card">
           <div class="text-label-sm" style="color: var(--text-muted);">Overall Benchmark</div>
           <div class="text-headline-xl" style="color: ${overall !== '--' ? 'var(--emerald)' : 'var(--text-muted)'}; margin-top: 4px;">
             ${overall}<span style="font-size: 16px; color: var(--text-muted);">/100</span>
@@ -993,43 +1005,45 @@ function renderSkillReportView() {
           <span class="badge badge-neutral">Cryptographically Verified: ${report.tamperEvidentHash || '0x9f4a2'}</span>
         </div>
 
-        <table class="data-table" style="width: 100%; border-collapse: collapse; text-align: left;">
-          <thead>
-            <tr style="border-bottom: 1px solid var(--border-structural); background: rgba(16,27,23,0.5);">
-              <th style="padding: 12px 16px; font-size: 11px; text-transform: uppercase; color: var(--text-muted);">Rubric Dimension</th>
-              <th style="padding: 12px 16px; font-size: 11px; text-transform: uppercase; color: var(--text-muted);">Weight</th>
-              <th style="padding: 12px 16px; font-size: 11px; text-transform: uppercase; color: var(--text-muted);">Score / Status</th>
-              <th style="padding: 12px 16px; font-size: 11px; text-transform: uppercase; color: var(--text-muted);">Grounded Evidence &amp; Explanation</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${dimensions.length > 0 ? dimensions.map(dim => `
-              <tr style="border-bottom: 1px solid rgba(38,60,49,0.3);">
-                <td style="padding: 14px 16px;">
-                  <div style="font-weight: 600; color: var(--text-high);">${dim.name}</div>
-                  <div class="text-code-sm" style="color: var(--text-muted); font-size: 11px;">${dim.dimension}</div>
-                </td>
-                <td style="padding: 14px 16px; font-weight: 500; color: var(--text-mid);">
-                  ${dim.weight}%
-                </td>
-                <td style="padding: 14px 16px;">
-                  <span class="badge ${dim.status === 'measured' ? (dim.earnedPoints > 0 ? 'badge-pass' : 'badge-fail') : (dim.status === 'insufficient_evidence' ? 'badge-warn' : 'badge-neutral')}">
-                    ${dim.status === 'measured' ? `${dim.earnedPoints} / ${dim.maximumPoints} pts` : dim.status}
-                  </span>
-                </td>
-                <td class="text-body-sm" style="padding: 14px 16px; color: var(--text-mid); font-size: 12px; line-height: 1.5;">
-                  ${dim.explanation}
-                </td>
+        <div class="table-responsive">
+          <table class="data-table" style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+              <tr style="border-bottom: 1px solid var(--border-structural); background: rgba(16,27,23,0.5);">
+                <th style="padding: 12px 16px; font-size: 11px; text-transform: uppercase; color: var(--text-muted);">Rubric Dimension</th>
+                <th style="padding: 12px 16px; font-size: 11px; text-transform: uppercase; color: var(--text-muted);">Weight</th>
+                <th style="padding: 12px 16px; font-size: 11px; text-transform: uppercase; color: var(--text-muted);">Score / Status</th>
+                <th style="padding: 12px 16px; font-size: 11px; text-transform: uppercase; color: var(--text-muted);">Grounded Evidence &amp; Explanation</th>
               </tr>
-            `).join('') : `
-              <tr>
-                <td colspan="4" style="padding: 20px; text-align: center; color: var(--text-muted);">
-                  Awaiting test execution or diagnostic submission.
-                </td>
-              </tr>
-            `}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              ${dimensions.length > 0 ? dimensions.map(dim => `
+                <tr style="border-bottom: 1px solid rgba(38,60,49,0.3);">
+                  <td style="padding: 14px 16px;">
+                    <div style="font-weight: 600; color: var(--text-high);">${dim.name}</div>
+                    <div class="text-code-sm" style="color: var(--text-muted); font-size: 11px;">${dim.dimension}</div>
+                  </td>
+                  <td style="padding: 14px 16px; font-weight: 500; color: var(--text-mid);">
+                    ${dim.weight}%
+                  </td>
+                  <td style="padding: 14px 16px;">
+                    <span class="badge ${dim.status === 'measured' ? (dim.earnedPoints > 0 ? 'badge-pass' : 'badge-fail') : (dim.status === 'insufficient_evidence' ? 'badge-warn' : 'badge-neutral')}">
+                      ${dim.status === 'measured' ? `${dim.earnedPoints} / ${dim.maximumPoints} pts` : dim.status}
+                    </span>
+                  </td>
+                  <td class="text-body-sm" style="padding: 14px 16px; color: var(--text-mid); font-size: 12px; line-height: 1.5;">
+                    ${dim.explanation}
+                  </td>
+                </tr>
+              `).join('') : `
+                <tr>
+                  <td colspan="4" style="padding: 20px; text-align: center; color: var(--text-muted);">
+                    Awaiting test execution or diagnostic submission.
+                  </td>
+                </tr>
+              `}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <!-- AI Collaboration Telemetry Panel (Zero Arbitrary Penalty Policy) -->
@@ -1087,6 +1101,7 @@ function renderApp() {
 
   app.innerHTML = `
     ${renderSidebar()}
+    <div id="sidebarOverlay" class="sidebar-overlay ${state.isSidebarOpen ? 'active' : ''}"></div>
     <div class="main-wrapper">
       ${renderHeader()}
       <main class="content">
@@ -1108,12 +1123,38 @@ function renderApp() {
 
 // ── Event Handlers & Interactivity ─────────────────────────────────
 function attachEventListeners() {
+  // Mobile sidebar toggle / close handlers
+  const sidebarToggleBtn = document.querySelector('#sidebarToggleBtn');
+  if (sidebarToggleBtn) {
+    sidebarToggleBtn.addEventListener('click', () => {
+      state.isSidebarOpen = !state.isSidebarOpen;
+      renderApp();
+    });
+  }
+  const sidebarCloseBtn = document.querySelector('#sidebarCloseBtn');
+  if (sidebarCloseBtn) {
+    sidebarCloseBtn.addEventListener('click', () => {
+      state.isSidebarOpen = false;
+      renderApp();
+    });
+  }
+  const sidebarOverlay = document.querySelector('#sidebarOverlay');
+  if (sidebarOverlay) {
+    sidebarOverlay.addEventListener('click', () => {
+      state.isSidebarOpen = false;
+      renderApp();
+    });
+  }
+
   // Navigation buttons
   document.querySelectorAll('[data-view]').forEach(btn => {
     btn.addEventListener('click', () => {
       const targetView = btn.getAttribute('data-view');
       if (targetView && state.currentView !== targetView) {
         state.currentView = targetView;
+        if (window.innerWidth <= 1080) {
+          state.isSidebarOpen = false;
+        }
         renderApp();
       }
     });

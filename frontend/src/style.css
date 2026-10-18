@@ -1301,15 +1301,253 @@ img {
   box-shadow: var(--shadow-card);
 }
 
-/* ── Responsive ────────────────────────────────────────────────── */
-@media (max-width: 1024px) {
+/* ── Focus Visibility & Keyboard Accessibility ────────────────── */
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+.nav-item:focus-visible,
+.verify-option-card:focus-visible,
+.chip:focus-visible {
+  outline: 2px solid var(--emerald);
+  outline-offset: 2px;
+}
+
+/* ── Workspace Sub-bar (Responsive Challenge Header) ─────────── */
+.workspace-subbar {
+  background: #06100d;
+  border-bottom: 1px solid rgba(59, 74, 65, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 20px;
+  min-height: 56px;
+}
+
+.subbar-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.subbar-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.subbar-title {
+  font-family: 'Inter', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-high);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 480px;
+}
+
+.subbar-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.subbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+/* ── Workspace 3-Column Grid ─────────────────────────────────── */
+.workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(440px, 2.2fr) minmax(320px, 1.3fr);
+  gap: 14px;
+  padding: 14px;
+  min-height: calc(100vh - 120px);
+}
+
+.workspace-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* ── Verify Option Cards ─────────────────────────────────────── */
+.verify-option-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--text-high);
+  background: var(--surface-2);
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  border: 1px solid var(--border-structural);
+  transition: all 0.15s ease;
+  line-height: 1.45;
+}
+
+.verify-option-card:hover {
+  background: var(--surface-3);
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.verify-option-card.selected {
+  border-color: var(--amber-light);
+  background: rgba(245, 158, 11, 0.08);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.1);
+}
+
+.verify-option-card input[type="radio"] {
+  accent-color: var(--amber);
+  margin-top: 3px;
+  cursor: pointer;
+}
+
+/* ── AI Coach Chat Styling ───────────────────────────────────── */
+.chat-thread-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 440px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.chat-bubble-candidate {
+  background: var(--surface-2);
+  border: 1px solid rgba(59, 74, 65, 0.4);
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+}
+
+.chat-bubble-ai {
+  background: #091310;
+  border: 1px solid rgba(0, 217, 145, 0.25);
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+}
+
+.chat-bubble-ai.local {
+  border-color: rgba(59, 130, 246, 0.25);
+}
+
+.chat-bubble-ai pre {
+  background: #040807;
+  border: 1px solid var(--border-structural);
+  border-radius: var(--radius-xs);
+  padding: 8px 10px;
+  margin-top: 6px;
+  overflow-x: auto;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+}
+
+/* ── Dossier & Report Grids ──────────────────────────────────── */
+.dossier-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 2fr) repeat(3, minmax(130px, 1fr));
+  gap: 16px;
+  align-items: center;
+}
+
+.trail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: 16px;
+}
+
+.report-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.report-benchmark-card {
+  background: var(--surface-1);
+  border: 1px solid rgba(0, 217, 145, 0.35);
+  box-shadow: 0 0 16px rgba(0, 217, 145, 0.06);
+}
+
+/* ── Responsive Table Container ──────────────────────────────── */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Sidebar Overlay (Mobile / Tablet) ───────────────────────── */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 45;
+}
+
+.sidebar-close-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  padding: 4px;
+  border-radius: var(--radius-xs);
+}
+
+.sidebar-close-btn:hover {
+  background: var(--surface-2);
+  color: var(--text-high);
+}
+
+/* ── Responsive Breakpoints ──────────────────────────────────── */
+@media (max-width: 1440px) {
+  .subbar-title {
+    max-width: 360px;
+  }
+}
+
+@media (max-width: 1280px) {
+  .workspace-grid {
+    grid-template-columns: minmax(260px, 1fr) minmax(380px, 2fr) minmax(280px, 1.2fr);
+    gap: 10px;
+    padding: 10px;
+  }
+  .subbar-title {
+    max-width: 280px;
+  }
+}
+
+@media (max-width: 1080px) {
   .sidebar {
     transform: translateX(-100%);
-    transition: transform 0.3s ease;
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .sidebar.open {
     transform: translateX(0);
+    box-shadow: 8px 0 24px rgba(0, 0, 0, 0.6);
+  }
+
+  .sidebar-overlay.active {
+    display: block;
+  }
+
+  .sidebar-close-btn {
+    display: flex;
   }
 
   .main-wrapper {
@@ -1322,6 +1560,64 @@ img {
 
   .mobile-toggle {
     display: flex !important;
+  }
+
+  .workspace-grid {
+    grid-template-columns: 1fr 1.6fr;
+  }
+
+  .workspace-col-ai {
+    grid-column: 1 / -1;
+  }
+
+  .dossier-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .report-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .trail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .header {
+    padding: 0 12px;
+  }
+
+  .header .search-box {
+    display: none;
+  }
+
+  .breadcrumb .seg,
+  .breadcrumb .sep:first-of-type {
+    display: none;
+  }
+
+  .workspace-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 8px;
+  }
+
+  .workspace-subbar {
+    padding: 10px 12px;
+  }
+
+  .subbar-title {
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  .dossier-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .report-grid {
+    grid-template-columns: 1fr;
   }
 }
 
