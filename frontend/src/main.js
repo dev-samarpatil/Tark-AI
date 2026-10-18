@@ -8,6 +8,8 @@ const state = {
   isFollowUp: false,
   isRunningTests: false,
   isSendingChat: false,
+  activeExecutionId: null,
+  executionError: null, // { status, message, line, offset }
   candidate: {
     name: 'Aarav Sharma',
     sessionId: '#TRK-8821',
@@ -37,11 +39,11 @@ if __name__ == "__main__":
     print(find_duplicates(sample))
 `,
   tests: [
-    { id: 1, name: 'Standard Multiset', input: '[4, 2, 4, 1, 2]', expected: '[4, 2]', actual: '[4, 2]', passed: true, duration: '12ms' },
-    { id: 2, name: 'Ordering Preservation', input: '[4, 2, 2, 4]', expected: '[4, 2]', actual: '[2, 4]', passed: false, duration: '14ms', assertion: 'Returned [2, 4] instead of expected [4, 2].' },
-    { id: 3, name: 'No Duplicates', input: '[1, 2, 3]', expected: '[]', actual: '[]', passed: true, duration: '8ms' },
-    { id: 4, name: 'Empty and Single-Value Arrays', input: '[]', expected: '[]', actual: '[]', passed: true, duration: '5ms' },
-    { id: 5, name: 'Negative Values & Duplicates', input: '[-1, -2, -1, 0, -2]', expected: '[-1, -2]', actual: '[-1, -2]', passed: true, duration: '9ms' }
+    { id: 1, name: 'Standard Multiset', input: '[4, 2, 4, 1, 2]', expected: '[4, 2]', actual: '[4, 2]', status: 'passed', passed: true, duration: '12ms' },
+    { id: 2, name: 'Ordering Preservation', input: '[4, 2, 2, 4]', expected: '[4, 2]', actual: '[2, 4]', status: 'failed', passed: false, duration: '14ms', assertion: 'Returned [2, 4] instead of expected [4, 2].' },
+    { id: 3, name: 'No Duplicates', input: '[1, 2, 3]', expected: '[]', actual: '[]', status: 'passed', passed: true, duration: '8ms' },
+    { id: 4, name: 'Empty and Single-Value Arrays', input: '[]', expected: '[]', actual: '[]', status: 'passed', passed: true, duration: '5ms' },
+    { id: 5, name: 'Negative Values & Duplicates', input: '[-1, -2, -1, 0, -2]', expected: '[-1, -2]', actual: '[-1, -2]', status: 'passed', passed: true, duration: '9ms' }
   ],
   latestSummary: { total: 5, passed: 4, failed: 1, runtime: '48ms' },
   chatMessages: [
@@ -80,7 +82,12 @@ async function fetchSessionData() {
 }
 
 async function runTestsAPI() {
+  if (state.isRunningTests) return;
+
+  const executionId = `exec_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  state.activeExecutionId = executionId;
   state.isRunningTests = true;
+  state.executionError = null;
   renderApp();
 
   try {
@@ -89,21 +96,44 @@ async function runTestsAPI() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         code: state.code,
-        isFollowUp: state.isFollowUp
+        mode: state.isFollowUp ? 'follow-up' : 'base',
+        isFollowUp: state.isFollowUp,
+        executionId
       })
     });
     const data = await res.json();
 
-    if (data.results && data.results.length > 0) {
-      state.tests = data.results;
-      state.latestSummary = data.summary || {
-        total: data.results.length,
-        passed: data.results.filter(r => r.passed).length,
-        failed: data.results.filter(r => !r.passed).length,
-        runtime: '45ms'
+    // Check if this response matches the most recent execution attempt
+    if (state.activeExecutionId !== data.executionId && data.executionId) {
+      console.log('[Tark API] Discarding stale execution response:', data.executionId);
+      return;
+    }
+
+    if (data.status === 'syntax_error' || data.status === 'runtime_error' || data.status === 'timeout' || data.status === 'runner_error') {
+      state.executionError = {
+        status: data.status,
+        message: data.error || 'Execution failed',
+        line: data.line,
+        offset: data.offset
       };
-    } else if (data.error) {
-      alert(`Execution Notice: ${data.error}`);
+      state.tests = data.results || [];
+      state.latestSummary = data.summary || {
+        total: state.isFollowUp ? 4 : 5,
+        passed: 0,
+        failed: state.isFollowUp ? 4 : 5,
+        runtime: data.summary ? data.summary.runtime : '0ms'
+      };
+    } else {
+      state.executionError = null;
+      if (data.results && data.results.length > 0) {
+        state.tests = data.results;
+        state.latestSummary = data.summary || {
+          total: data.results.length,
+          passed: data.results.filter(r => r.passed).length,
+          failed: data.results.filter(r => !r.passed).length,
+          runtime: '45ms'
+        };
+      }
     }
 
     // Refresh Decision Trail and Skill Report in background
@@ -116,7 +146,10 @@ async function runTestsAPI() {
 
   } catch (err) {
     console.error('Failed to run tests:', err);
-    alert('Backend connection error: could not connect to http://localhost:5000/api/tests/run');
+    state.executionError = {
+      status: 'runner_error',
+      message: 'Network / server communication error connecting to http://localhost:5000/api/tests/run'
+    };
   } finally {
     state.isRunningTests = false;
     renderApp();
@@ -263,8 +296,8 @@ function renderHeader() {
 
 // ── View: Workspace (Cockpit) ──────────────────────────────────────
 function renderWorkspaceView() {
-  const totalTests = state.latestSummary ? state.latestSummary.total : state.tests.length;
-  const passedTests = state.latestSummary ? state.latestSummary.passed : state.tests.filter(t => t.passed).length;
+  const totalTests = state.latestSummary ? state.latestSummary.total : (state.isFollowUp ? 4 : 5);
+  const passedTests = state.latestSummary ? state.latestSummary.passed : 0;
   const passPercent = totalTests > 0 ? Math.round((passedTests / totalTests) * 100) : 0;
   const lineCount = (state.code.match(/\n/g) || []).length + 1;
   const gutterLines = Array.from({ length: Math.max(lineCount, 18) }, (_, i) => String(i + 1).padStart(2, '0'));
@@ -384,7 +417,7 @@ function renderWorkspaceView() {
             <div style="margin-top: auto; padding: 10px; background: var(--surface-2); border-radius: 8px; border-left: 3px solid var(--emerald);">
               <div class="text-label-sm" style="color: var(--emerald); font-weight: 600;">Child Process Runner Active</div>
               <div class="text-body-sm" style="font-size: 11px; color: var(--text-mid); margin-top: 2px;">
-                Code executes directly in an isolated Python 3 child process with stderr &amp; stdout capture.
+                Isolated Python 3 child process via testHarness with stdin streaming.
               </div>
             </div>
           </div>
@@ -415,53 +448,76 @@ function renderWorkspaceView() {
             </div>
           </div>
 
-          <!-- Test Results -->
+          <!-- Test Results / Execution Status -->
           <div class="card card-low" style="padding: 14px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
               <div style="display: flex; align-items: center; gap: 10px;">
-                <span class="text-headline-md" style="font-size: 15px;">Live Test Results</span>
-                <span class="badge ${passedTests === totalTests ? 'badge-pass' : 'badge-fail'}">
-                  ${passedTests}/${totalTests} passed (${passPercent}%)
-                </span>
+                <span class="text-headline-md" style="font-size: 15px;">Live Execution &amp; Test Results</span>
+                ${state.executionError ? `
+                  <span class="badge badge-fail" style="text-transform: uppercase;">
+                    ${state.executionError.status.replace('_', ' ')}
+                  </span>
+                ` : `
+                  <span class="badge ${passedTests === totalTests ? 'badge-pass' : 'badge-fail'}">
+                    ${passedTests}/${totalTests} passed (${passPercent}%)
+                  </span>
+                `}
                 ${state.isFollowUp ? '<span class="badge badge-ai">Adaptation Tests</span>' : ''}
               </div>
               <span class="text-code-sm" style="color: var(--text-muted);">
-                Runtime: ${state.latestSummary ? state.latestSummary.runtime : '38ms'}
+                Runtime: ${state.latestSummary ? state.latestSummary.runtime : '0ms'}
               </span>
             </div>
 
-            <div class="segmented-progress" style="margin-bottom: 12px; display: grid; grid-template-columns: repeat(${totalTests}, 1fr); gap: 4px;">
-              ${state.tests.map(t => `<div class="seg ${t.passed ? 'pass' : 'fail'}" style="height: 4px; border-radius: 2px;"></div>`).join('')}
-            </div>
+            ${state.executionError ? `
+              <!-- Global Execution Error Banner (Syntax Error / Runtime Exception / Timeout) -->
+              <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 8px; padding: 14px; margin-bottom: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px; color: var(--red-light); font-weight: 600; margin-bottom: 6px;">
+                  <span class="material-symbols-outlined icon-sm">error</span>
+                  <span>${state.executionError.status === 'syntax_error' ? 'Python Syntax Error' : (state.executionError.status === 'timeout' ? 'Execution Timeout Exceeded' : 'Top-Level Execution Error')}</span>
+                </div>
+                <div style="background: #06100d; border-radius: 6px; padding: 10px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #fca5a5; white-space: pre-wrap; line-height: 1.5; overflow-x: auto;">
+${state.executionError.message}
+                </div>
+                <div class="text-body-sm" style="color: var(--text-mid); font-size: 11px; margin-top: 8px;">
+                  Notice: Code failed before test suite execution. Fix the error above and click <strong>Run Tests</strong>.
+                </div>
+              </div>
+            ` : `
+              <div class="segmented-progress" style="margin-bottom: 12px; display: grid; grid-template-columns: repeat(${totalTests}, 1fr); gap: 4px;">
+                ${state.tests.map(t => `<div class="seg ${t.passed ? 'pass' : 'fail'}" style="height: 4px; border-radius: 2px;"></div>`).join('')}
+              </div>
 
-            <div style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto;">
-              ${state.tests.map(t => t.passed ? `
-                <div class="test-item pass">
-                  <div class="test-item-left">
-                    <span class="material-symbols-outlined icon-sm" style="color: var(--emerald);">check_circle</span>
-                    <span class="name">Test ${t.id}: ${t.name}</span>
-                    <span class="detail">${t.input} → ${t.expected}</span>
-                  </div>
-                  <span class="status">Passed (${t.duration || '0ms'})</span>
-                </div>
-              ` : `
-                <div class="test-item-expanded" style="background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; padding: 10px;">
-                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <div style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto;">
+                ${state.tests.map(t => t.passed ? `
+                  <div class="test-item pass">
                     <div class="test-item-left">
-                      <span class="material-symbols-outlined icon-sm" style="color: var(--red-light);">cancel</span>
-                      <span class="name" style="color: var(--red-light); font-weight: 600;">Test ${t.id}: ${t.name}</span>
+                      <span class="material-symbols-outlined icon-sm" style="color: var(--emerald);">check_circle</span>
+                      <span class="name">Test ${t.id}: ${t.name}</span>
+                      <span class="detail">${t.input} → ${t.expected}</span>
                     </div>
-                    <span class="badge badge-fail">Failed (${t.duration || '0ms'})</span>
+                    <span class="status">Passed (${t.duration || '0ms'})</span>
                   </div>
-                  <div class="test-diff" style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">
-                    <div style="color: var(--text-muted);">Input:    <span style="color: var(--text-high);">${t.input}</span></div>
-                    <div style="color: var(--emerald);">Expected: <span style="background: rgba(0,217,145,0.1); padding: 0 4px; border-radius: 3px;">${t.expected}</span></div>
-                    <div style="color: var(--red-light);">Actual:   <span style="background: rgba(239,68,68,0.15); padding: 0 4px; border-radius: 3px;">${t.actual}</span></div>
-                    ${t.assertion ? `<div style="color: var(--red-light); font-size: 11px; margin-top: 4px;">Assertion Detail: ${t.assertion}</div>` : ''}
+                ` : `
+                  <div class="test-item-expanded" style="background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; padding: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                      <div class="test-item-left">
+                        <span class="material-symbols-outlined icon-sm" style="color: var(--red-light);">${t.status === 'error' ? 'warning' : 'cancel'}</span>
+                        <span class="name" style="color: var(--red-light); font-weight: 600;">Test ${t.id}: ${t.name}</span>
+                        ${t.status === 'error' ? '<span class="badge badge-warn" style="font-size: 9px;">Runtime Error</span>' : ''}
+                      </div>
+                      <span class="badge badge-fail">Failed (${t.duration || '0ms'})</span>
+                    </div>
+                    <div class="test-diff" style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">
+                      <div style="color: var(--text-muted);">Input:    <span style="color: var(--text-high);">${t.input}</span></div>
+                      <div style="color: var(--emerald);">Expected: <span style="background: rgba(0,217,145,0.1); padding: 0 4px; border-radius: 3px;">${t.expected}</span></div>
+                      <div style="color: var(--red-light);">Actual:   <span style="background: rgba(239,68,68,0.15); padding: 0 4px; border-radius: 3px;">${t.actual}</span></div>
+                      ${t.assertion ? `<div style="color: var(--red-light); font-size: 11px; margin-top: 4px;">Detail: ${t.assertion}</div>` : ''}
+                    </div>
                   </div>
-                </div>
-              `).join('')}
-            </div>
+                `).join('')}
+              </div>
+            `}
           </div>
         </div>
 
@@ -569,7 +625,7 @@ function renderDecisionTrailView() {
           </p>
         </div>
 
-        <div style="display: flex; gap: 10px;">
+        <div style="display: gap: 10px; display: flex;">
           <button class="btn btn-outline" onclick="window.refreshData()">
             <span class="material-symbols-outlined">sync</span>
             <span>Refresh Events</span>
@@ -630,14 +686,14 @@ function renderDecisionTrailView() {
                 <span class="timeline-time">${evt.timestamp}</span>
                 <div class="timeline-body">
                   <div class="timeline-title">
-                    <span class="material-symbols-outlined icon-xs" style="color: ${evt.type === 'ai' ? 'var(--blue-light)' : (evt.tag === 'Passed' ? 'var(--emerald)' : 'var(--text-high)')};">
+                    <span class="material-symbols-outlined icon-xs" style="color: ${evt.type === 'ai' ? 'var(--blue-light)' : (evt.tag === 'Passed' ? 'var(--emerald)' : (evt.tag === 'Syntax Error' || evt.tag === 'Failed' ? 'var(--red-light)' : 'var(--text-high)'))};">
                       ${evt.type === 'ai' ? 'smart_toy' : (evt.type === 'test' ? 'bug_report' : 'check_circle')}
                     </span>
                     <span>${evt.action}</span>
                   </div>
                   <div class="timeline-desc" style="font-size: 12px; color: var(--text-mid); margin-top: 2px;">${evt.details}</div>
                 </div>
-                <span class="timeline-tag ${evt.tag === 'Passed' ? 'badge-pass' : (evt.tag === 'Failed' ? 'badge-fail' : (evt.type === 'ai' ? 'badge-ai' : 'badge-neutral'))}">
+                <span class="timeline-tag ${evt.tag === 'Passed' ? 'badge-pass' : (evt.tag === 'Failed' || evt.tag === 'Syntax Error' ? 'badge-fail' : (evt.type === 'ai' ? 'badge-ai' : 'badge-neutral'))}">
                   ${evt.tag || evt.type}
                 </span>
               </div>
@@ -648,7 +704,7 @@ function renderDecisionTrailView() {
         <!-- Code Inspection Diff -->
         <div class="card card-low" style="padding: 16px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <div class="text-headline-md" style="font-size: 16px;">Synthesis Diff: Buggy Loop → Counter Order Preservation</div>
+            <div class="text-headline-md" style="font-size: 16px;">Synthesis Diff: Baseline Loop → Counter Preservation</div>
             <span class="badge badge-ai">Forensic Code Comparison</span>
           </div>
 

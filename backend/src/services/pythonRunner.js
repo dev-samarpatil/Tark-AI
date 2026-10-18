@@ -1,25 +1,33 @@
 import { spawn } from 'child_process';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const HARNESS_PATH = path.resolve(__dirname, 'testHarness.py');
 
 /**
  * Isolated Python Runner Service
  * 
- * Executes candidate Python code against deterministic test suites in a child process.
+ * Executes candidate Python code against deterministic test suites in a child process
+ * using testHarness.py via stdin JSON streaming.
  * 
  * NOTE ON SECURITY & ISOLATION LIMITATION:
- * This runner executes code in a separate Python child process with a strict 3000ms timeout.
- * While child process separation prevents blocking or crashing the Node.js/Express event loop,
- * it does NOT provide production-grade OS virtualization, seccomp, or container isolation.
+ * This runner executes code in a separate Python child process with a strict 3000ms timeout
+ * and stripped environment variables. While child process separation prevents blocking or
+ * crashing the Node.js/Express event loop, it does NOT provide production-grade OS virtualization,
+ * seccomp, or container sandbox isolation.
  */
 
-const BASE_TESTS = [
+export const BASE_TESTS = [
   { id: 1, name: 'Standard Multiset', input: [4, 2, 4, 1, 2], expected: [4, 2] },
-  { id: 2, name: 'Ordering Preservation', input: [4, 2, 2, 4], expected: [4, 2], hint: 'Preserve first appearance index' },
+  { id: 2, name: 'Ordering Preservation', input: [4, 2, 2, 4], expected: [4, 2] },
   { id: 3, name: 'No Duplicates', input: [1, 2, 3], expected: [] },
   { id: 4, name: 'Empty and Single-Value Arrays', input: [], expected: [] },
   { id: 5, name: 'Negative Values & Duplicates', input: [-1, -2, -1, 0, -2], expected: [-1, -2] }
 ];
 
-const FOLLOW_UP_TESTS = [
+export const FOLLOW_UP_TESTS = [
   { id: 1, name: 'Follow-up: Threshold (Frequency >= 3)', input: [4, 2, 4, 1, 2, 4], expected: [4], minCount: 3 },
   { id: 2, name: 'Follow-up: Multiple High-Frequency Items', input: [3, 1, 3, 2, 1, 3, 1], expected: [3, 1], minCount: 3 },
   { id: 3, name: 'Follow-up: No Element Reaches Threshold', input: [1, 1, 2, 2, 3], expected: [], minCount: 3 },
@@ -27,104 +35,39 @@ const FOLLOW_UP_TESTS = [
 ];
 
 export class PythonRunner {
-  static execute(code, isFollowUp = false) {
+  static execute(code, options = {}) {
     return new Promise((resolve) => {
+      // Normalize options for backward compatibility
+      let mode = 'base';
+      let executionId = `exec_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      
+      if (typeof options === 'boolean') {
+        mode = options ? 'follow-up' : 'base';
+      } else if (typeof options === 'object' && options !== null) {
+        if (options.mode) mode = options.mode;
+        else if (options.isFollowUp) mode = 'follow-up';
+        if (options.executionId) executionId = options.executionId;
+      }
+
+      const isFollowUp = (mode === 'follow-up');
       const tests = isFollowUp ? FOLLOW_UP_TESTS : BASE_TESTS;
-      const testCasesJson = JSON.stringify(tests);
-      const isFollowUpFlag = isFollowUp ? 'True' : 'False';
-
-      // Python harness that imports candidate code and runs each test case with timing
-      const pythonHarness = `
-import sys
-import json
-import time
-import inspect
-from typing import List
-
-# Candidate Code
-${code}
-
-def run_suite():
-    tests = json.loads('''${testCasesJson}''')
-    results = []
-    
-    if 'find_duplicates' not in globals():
-        print(json.dumps({
-            "success": False,
-            "error": "Function 'find_duplicates' is not defined. Please implement 'def find_duplicates(nums):'."
-        }))
-        return
-
-    fn = globals()['find_duplicates']
-    sig = inspect.signature(fn)
-    accepts_min_count = len(sig.parameters) >= 2 or any(p.default != inspect.Parameter.empty for p in list(sig.parameters.values())[1:])
-
-    for t in tests:
-        test_id = t["id"]
-        test_name = t["name"]
-        inp = t["input"]
-        expected = t["expected"]
-        min_count = t.get("minCount", 2)
-        
-        start_time = time.perf_counter()
-        passed = False
-        actual = None
-        assertion = None
-        
-        try:
-            # If follow-up test and function accepts 2nd param or defaults
-            if ${isFollowUpFlag} and len(sig.parameters) >= 2:
-                actual = fn(list(inp), min_count)
-            else:
-                actual = fn(list(inp))
-                
-            elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
-            
-            # Normalize list comparison
-            if isinstance(actual, (list, tuple)) and list(actual) == expected:
-                passed = True
-            else:
-                passed = False
-                if not isinstance(actual, (list, tuple)):
-                    assertion = f"Expected list but got {type(actual).__name__}: {repr(actual)}"
-                else:
-                    assertion = f"Returned {repr(list(actual))} instead of expected {repr(expected)}."
-        except Exception as e:
-            elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
-            passed = False
-            actual = f"Exception: {type(e).__name__}"
-            assertion = f"{type(e).__name__}: {str(e)}"
-            
-        results.append({
-            "id": test_id,
-            "name": test_name,
-            "input": repr(inp),
-            "expected": repr(expected),
-            "actual": repr(actual) if actual is not None else "None",
-            "passed": passed,
-            "duration": f"{elapsed_ms}ms",
-            "assertion": assertion
-        })
-
-    print(json.dumps({
-        "success": True,
-        "results": results
-    }))
-
-if __name__ == "__main__":
-    run_suite()
-`;
-
       const startTime = Date.now();
+
+      // Launch Python child process with isolated environment (no sensitive env vars passed)
+      const pyProc = spawn('python', ['-u', HARNESS_PATH], {
+        windowsHide: true,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: {
+          PYTHONIOENCODING: 'utf-8',
+          PYTHONUNBUFFERED: '1',
+          PATH: process.env.PATH,
+          SYSTEMROOT: process.env.SYSTEMROOT || ''
+        }
+      });
+
       let stdoutData = '';
       let stderrData = '';
       let hasTimedOut = false;
-
-      // Spawn child process
-      const pyProc = spawn('python', ['-u', '-c', pythonHarness], {
-        windowsHide: true,
-        stdio: ['pipe', 'pipe', 'pipe']
-      });
 
       // Strict 3-second timeout
       const timer = setTimeout(() => {
@@ -146,88 +89,88 @@ if __name__ == "__main__":
 
         if (hasTimedOut) {
           return resolve({
+            executionId,
             success: false,
+            status: 'timeout',
+            mode,
+            isFollowUp,
             error: 'Execution Timed Out (exceeded 3000ms limit). Possible infinite loop in candidate code.',
-            results: tests.map(t => ({
-              id: t.id,
-              name: t.name,
-              input: JSON.stringify(t.input),
-              expected: JSON.stringify(t.expected),
-              actual: 'TIMEOUT',
-              passed: false,
-              duration: '>3000ms',
-              assertion: 'Time Limit Exceeded: Process terminated after 3000ms.'
-            })),
-            summary: { total: tests.length, passed: 0, failed: tests.length, runtime: `${totalDuration}ms` },
-            isFollowUp
+            results: [],
+            summary: {
+              total: tests.length,
+              passed: 0,
+              failed: tests.length,
+              runtime: `${totalDuration}ms`
+            }
           });
         }
 
         if (exitCode !== 0 && !stdoutData.trim()) {
-          // Top-level syntax error, import error, etc.
           const cleanError = stderrData.trim() || `Python process exited with code ${exitCode}`;
           return resolve({
+            executionId,
             success: false,
+            status: 'runner_error',
+            mode,
+            isFollowUp,
             error: cleanError,
-            results: tests.map(t => ({
-              id: t.id,
-              name: t.name,
-              input: JSON.stringify(t.input),
-              expected: JSON.stringify(t.expected),
-              actual: 'Syntax/Runtime Error',
-              passed: false,
-              duration: `${totalDuration}ms`,
-              assertion: cleanError
-            })),
-            summary: { total: tests.length, passed: 0, failed: tests.length, runtime: `${totalDuration}ms` },
-            isFollowUp
+            results: [],
+            summary: {
+              total: tests.length,
+              passed: 0,
+              failed: tests.length,
+              runtime: `${totalDuration}ms`
+            }
           });
         }
 
         try {
           const parsed = JSON.parse(stdoutData.trim());
-          if (!parsed.success) {
-            return resolve({
-              success: false,
-              error: parsed.error,
-              results: tests.map(t => ({
-                id: t.id,
-                name: t.name,
-                input: JSON.stringify(t.input),
-                expected: JSON.stringify(t.expected),
-                actual: 'Execution Error',
-                passed: false,
-                duration: `${totalDuration}ms`,
-                assertion: parsed.error
-              })),
-              summary: { total: tests.length, passed: 0, failed: tests.length, runtime: `${totalDuration}ms` },
-              isFollowUp
-            });
-          }
-
-          const results = parsed.results;
+          const results = parsed.results || [];
           const passedCount = results.filter(r => r.passed).length;
+          const failedCount = tests.length - passedCount;
+          const isCompleted = parsed.status === 'completed';
+
           return resolve({
-            success: true,
+            executionId,
+            success: isCompleted && passedCount === tests.length,
+            status: parsed.status, // 'completed' | 'syntax_error' | 'runtime_error' | 'runner_error'
+            mode,
+            isFollowUp,
+            error: parsed.error || null,
+            line: parsed.line || null,
+            offset: parsed.offset || null,
             results,
             summary: {
-              total: results.length,
+              total: tests.length,
               passed: passedCount,
-              failed: results.length - passedCount,
+              failed: isCompleted ? failedCount : tests.length,
               runtime: `${totalDuration}ms`
-            },
-            isFollowUp
+            }
           });
         } catch (err) {
           return resolve({
+            executionId,
             success: false,
+            status: 'runner_error',
+            mode,
+            isFollowUp,
             error: `Failed to parse Python test runner output: ${stderrData || stdoutData}`,
             results: [],
-            summary: { total: tests.length, passed: 0, failed: tests.length, runtime: `${totalDuration}ms` },
-            isFollowUp
+            summary: {
+              total: tests.length,
+              passed: 0,
+              failed: tests.length,
+              runtime: `${totalDuration}ms`
+            }
           });
         }
       });
+
+      // Stream payload to Python testHarness via stdin
+      const payload = JSON.stringify({ code, mode, tests });
+      pyProc.stdin.write(payload);
+      pyProc.stdin.end();
     });
   }
 }
