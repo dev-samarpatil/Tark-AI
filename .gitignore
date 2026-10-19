@@ -36,3 +36,17 @@ backend/data/
 Thumbs.db
 .vscode/
 .idea/
+
+# Internal Agent & Planning Framework Files
+.gsd/
+.agent/
+.agents/
+.gemini/
+adapters/
+GSD-STYLE.md
+PROJECT_RULES.md
+model_capabilities.yaml
+VERSION
+scripts/validate-*
+scripts/search_repo*
+scripts/setup_search*
